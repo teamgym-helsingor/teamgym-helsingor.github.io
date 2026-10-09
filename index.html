@@ -208,7 +208,12 @@
     if (pending) pbarTimer = setTimeout(function () { pbarEl.classList.add('on'); }, 120);
     else pbarEl.classList.remove('on');
   }
+  // Bjælken vises kun, når man selv venter på noget: når der gemmes/slettes, eller når en
+  // historik eller lønseddel hentes første gang. Opstart og opdatering sker stille i baggrunden.
+  var SHOW_BAR = { apiAddRegistrations: 1, apiAddExpense: 1, apiDeleteRegistration: 1, apiDeleteExpense: 1, apiNoHours: 1,
+    apiChangePassword: 1, apiGetHistory: 1, apiGetPayslip: 1, apiGetPayslipPdf: 1 };
   function call(fn) {
+    if (!SHOW_BAR[fn]) return callRaw.apply(null, arguments);
     progress(true);
     return callRaw.apply(null, arguments).then(function (r) { progress(false); return r; }, function (e) { progress(false); throw e; });
   }
@@ -225,24 +230,43 @@
     // Ændringer får et id, så serveren kan genkende et nyt forsøg og ikke gemmer to gange.
     var rid = WRITES[fn] ? (Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).replace(/[^a-z0-9]/g, '').slice(0, 32) : undefined;
     var body = JSON.stringify({ fn: fn, args: args, rid: rid });
-    // Google svarer af og til slet ikke på første forespørgsel efter en pause. Rene læsninger
-    // afbrydes derfor efter nogle sekunder og prøves igen – et nyt forsøg går typisk hurtigt.
-    var waits = SAFE_RETRY[fn] || [90000];
-    var attempt = 0;
-    function once() {
-      var ctrl = window.AbortController ? new AbortController() : null;
-      var t0 = Date.now(), timedOut = false;
-      var timer = setTimeout(function () { timedOut = true; if (ctrl) ctrl.abort(); }, waits[attempt]);
-      return fetch(API_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: body, signal: ctrl ? ctrl.signal : undefined })
-        .then(function (r) { clearTimeout(timer); if (!r.ok) throw new Error('NET'); return r.json(); }, function () { clearTimeout(timer); throw new Error('NET'); })
-        .then(function (j) { dbg(fn, attempt, Date.now() - t0, j.ms, j.t, j.ok ? 'ok' : 'fejl'); if (!j.ok) throw new Error(cleanErr(j.error)); return j.result; },
-              function (e) { if (e.message === 'NET') dbg(fn, attempt, Date.now() - t0, null, null, timedOut ? 'opgivet' : 'netfejl'); throw e; })
-        .catch(function (e) {
-          if (e.message === 'NET' && ++attempt < waits.length) { slowNotice(true); return once(); }
-          throw e.message === 'NET' ? new Error('Ingen forbindelse til serveren. Tjek dit net og prøv igen.') : e;
-        });
-    }
-    return once().then(function (r) { slowNotice(false); return r; }, function (e) { slowNotice(false); throw e; });
+    // Google lader af og til en forespørgsel hænge uden svar. Svarer serveren ikke inden for få
+    // sekunder, sendes en kopi parallelt, og det første svar vinder. Ændringer bærer et id, så
+    // serveren kun udfører dem én gang, uanset hvor mange kopier der når frem.
+    var plan = HEDGE[fn] || [0];
+    return new Promise(function (resolve, reject) {
+      var done = false, started = 0, failed = 0, ctrls = [], timers = [];
+      function finish(ok, v) {
+        if (done) return; done = true;
+        timers.forEach(clearTimeout);
+        ctrls.forEach(function (c) { try { if (c && !WRITES[fn]) c.abort(); } catch (e) {} });
+        ok ? resolve(v) : reject(v);
+      }
+      function launch(n) {
+        if (done) return;
+        started++;
+        var ctrl = window.AbortController ? new AbortController() : null; ctrls.push(ctrl);
+        var t0 = Date.now(), timedOut = false;
+        var kill = setTimeout(function () { timedOut = true; if (ctrl) ctrl.abort(); }, MAX_WAIT);
+        fetch(API_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: body, signal: ctrl ? ctrl.signal : undefined })
+          .then(function (r) { if (!r.ok) throw new Error('NET'); return r.json(); })
+          .then(function (j) {
+            clearTimeout(kill);
+            dbg(fn, n, Date.now() - t0, j.ms, j.t, j.ok ? 'ok' : 'fejl');
+            if (j.ok) finish(true, j.result); else finish(false, new Error(cleanErr(j.error)));
+          }, function () {
+            clearTimeout(kill);
+            if (!done) dbg(fn, n, Date.now() - t0, null, null, timedOut ? 'opgivet' : 'netfejl');
+            failed++;
+            // Alle afsendte forsøg er fejlet: start straks det næste, eller giv op.
+            if (failed === started) {
+              if (started < plan.length) { clearTimeout(timers[started]); launch(started); }
+              else finish(false, new Error('Ingen forbindelse til serveren. Tjek dit net og prøv igen.'));
+            }
+          });
+      }
+      plan.forEach(function (at, n) { timers[n] = setTimeout(function () { if (started === n) launch(n); }, at); });
+    });
   }
   // Fejlsøgning: de seneste 40 kald gemmes på telefonen. Åbn siden med #debug for at se dem.
   function dbg(fn, attempt, clientMs, serverMs, ticks, result) {
@@ -265,21 +289,15 @@
   }
   if (/debug/.test(location.hash + location.search)) setTimeout(showDebug, 300);
   window.addEventListener('hashchange', function () { if (/debug/.test(location.hash)) showDebug(); });
-  var READS = [9000, 14000, 25000];
-  var WRITE_WAITS = [10000, 20000, 30000];
+  // Hvornår der sendes en ekstra kopi (ms efter første). Normale svar tager 2–4 sekunder.
+  var MAX_WAIT = 45000;
+  var READS = [0, 4500, 9000, 15000];
+  var WRITE_PLAN = [0, 7000, 14000, 22000];
   var WRITES = { apiAddRegistrations: 1, apiAddExpense: 1, apiDeleteRegistration: 1, apiDeleteExpense: 1, apiNoHours: 1, apiChangePassword: 1 };
-  var SAFE_RETRY = { apiBoot: READS, apiConfig: READS, apiGetState: READS, apiGetHistory: READS, apiGetPayslip: READS, apiGetPayslipPdf: READS,
-    apiLogin: [15000, 20000, 30000], // et ekstra login-forsøg giver højst en ekstra session
-    apiAddRegistrations: WRITE_WAITS, apiAddExpense: [30000, 30000, 40000], apiDeleteRegistration: WRITE_WAITS, apiDeleteExpense: WRITE_WAITS,
-    apiNoHours: WRITE_WAITS, apiChangePassword: WRITE_WAITS };
-  var slowEl = null;
-  function slowNotice(on) {
-    if (on && !slowEl) {
-      slowEl = document.createElement('div'); slowEl.className = 'toast'; slowEl.setAttribute('role', 'status');
-      slowEl.textContent = 'Serveren er lidt længe om at svare – prøver igen…';
-      document.body.appendChild(slowEl);
-    } else if (!on && slowEl) { slowEl.remove(); slowEl = null; }
-  }
+  var HEDGE = { apiBoot: READS, apiConfig: READS, apiGetState: READS, apiGetHistory: READS, apiGetPayslip: READS, apiGetPayslipPdf: READS,
+    apiLogin: [0, 7000, 14000], // en ekstra kopi giver højst en ekstra session
+    apiAddRegistrations: WRITE_PLAN, apiAddExpense: [0, 15000, 30000], apiDeleteRegistration: WRITE_PLAN, apiDeleteExpense: WRITE_PLAN,
+    apiNoHours: WRITE_PLAN, apiChangePassword: WRITE_PLAN, apiLogout: [0] };
 
   // Seneste visning gemmes på telefonen, så appen åbner med det samme.
   var CACHE_KEY = 'tgh_traenertimer_cache';
@@ -452,7 +470,7 @@
     var t = token;
     setToken(null);
     data = null;
-    call('apiLogout', t).catch(function () {});
+    callQuiet('apiLogout', t).catch(function () {});
     showLogin('Du er logget ud.');
   }
 
@@ -936,7 +954,7 @@
     setData(res.state, 'boot');
   }).catch(function (e) {
     if (shownLogin) return; // login-siden virker uden; selve login prøver igen
-    if (data) toast('Ingen forbindelse – viser det senest hentede.', true);
+    if (data) return; // vis bare det senest hentede – det opdateres næste gang
     else { mount(h('div', { class: 'loading' }, h('div', { style: 'text-align:center;padding:24px' }, h('p', { text: e.message }), h('button', { class: 'btn primary', style: 'width:auto', text: 'Prøv igen', onclick: function () { location.reload(); } })))); }
   });
 })();
