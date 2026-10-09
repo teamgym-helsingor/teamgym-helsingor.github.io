@@ -391,6 +391,7 @@
     var btn = h('button', { class: 'btn primary', type: 'submit', text: 'Log ind' });
     var form = h('form', { onsubmit: function (ev) {
       ev.preventDefault();
+      if (btn.disabled) return; // allerede i gang
       err.textContent = '';
       if (!mail.value.trim() || !pw.input.value) { err.textContent = 'Skriv din mail og kode.'; return; }
       busy(btn, true);
