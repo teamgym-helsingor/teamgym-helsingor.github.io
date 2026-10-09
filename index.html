@@ -291,11 +291,11 @@
   window.addEventListener('hashchange', function () { if (/debug/.test(location.hash)) showDebug(); });
   // Hvornår der sendes en ekstra kopi (ms efter første). Normale svar tager 2–4 sekunder.
   var MAX_WAIT = 45000;
-  var READS = [0, 4500, 9000, 15000];
-  var WRITE_PLAN = [0, 7000, 14000, 22000];
+  var READS = [0, 4000, 8000, 14000];
+  var WRITE_PLAN = [0, 6500, 13000, 21000];
   var WRITES = { apiAddRegistrations: 1, apiAddExpense: 1, apiDeleteRegistration: 1, apiDeleteExpense: 1, apiNoHours: 1, apiChangePassword: 1 };
   var HEDGE = { apiBoot: READS, apiConfig: READS, apiGetState: READS, apiGetHistory: READS, apiGetPayslip: READS, apiGetPayslipPdf: READS,
-    apiLogin: [0, 7000, 14000], // en ekstra kopi giver højst en ekstra session
+    apiLogin: [0, 5500, 11000, 18000], // en ekstra kopi giver højst en ekstra session
     apiAddRegistrations: WRITE_PLAN, apiAddExpense: [0, 15000, 30000], apiDeleteRegistration: WRITE_PLAN, apiDeleteExpense: WRITE_PLAN,
     apiNoHours: WRITE_PLAN, apiChangePassword: WRITE_PLAN, apiLogout: [0] };
 
