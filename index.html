@@ -222,14 +222,39 @@
       });
     }
     if (!/^https:\/\/script\.google\.com\/.+\/exec/.test(API_URL)) return Promise.reject(new Error('Appen mangler linket til serveren. Kontakt kassereren.'));
-    return fetch(API_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args }) })
-      .then(function (r) { if (!r.ok) throw new Error('NET'); return r.json(); }, function () { throw new Error('NET'); })
-      .then(function (j) { if (!j.ok) throw new Error(cleanErr(j.error)); return j.result; })
-      .catch(function (e) { throw e.message === 'NET' ? new Error('Ingen forbindelse til serveren. Tjek dit net og prøv igen.') : e; });
+    var body = JSON.stringify({ fn: fn, args: args });
+    // Google svarer af og til slet ikke på første forespørgsel efter en pause. Rene læsninger
+    // afbrydes derfor efter nogle sekunder og prøves igen – et nyt forsøg går typisk hurtigt.
+    var waits = SAFE_RETRY[fn] || [90000];
+    var attempt = 0;
+    function once() {
+      var ctrl = window.AbortController ? new AbortController() : null;
+      var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, waits[attempt]);
+      return fetch(API_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: body, signal: ctrl ? ctrl.signal : undefined })
+        .then(function (r) { clearTimeout(timer); if (!r.ok) throw new Error('NET'); return r.json(); }, function () { clearTimeout(timer); throw new Error('NET'); })
+        .then(function (j) { if (!j.ok) throw new Error(cleanErr(j.error)); return j.result; })
+        .catch(function (e) {
+          if (e.message === 'NET' && ++attempt < waits.length) { slowNotice(true); return once(); }
+          throw e.message === 'NET' ? new Error('Ingen forbindelse til serveren. Tjek dit net og prøv igen.') : e;
+        });
+    }
+    return once().then(function (r) { slowNotice(false); return r; }, function (e) { slowNotice(false); throw e; });
+  }
+  var READS = [9000, 14000, 25000];
+  var SAFE_RETRY = { apiBoot: READS, apiConfig: READS, apiGetState: READS, apiGetHistory: READS, apiGetPayslip: READS, apiGetPayslipPdf: READS,
+    apiLogin: [15000, 20000, 30000] }; // et ekstra login-forsøg giver højst en ekstra session
+  var slowEl = null;
+  function slowNotice(on) {
+    if (on && !slowEl) {
+      slowEl = document.createElement('div'); slowEl.className = 'toast'; slowEl.setAttribute('role', 'status');
+      slowEl.textContent = 'Serveren er lidt længe om at svare – prøver igen…';
+      document.body.appendChild(slowEl);
+    } else if (!on && slowEl) { slowEl.remove(); slowEl = null; }
   }
 
   // Seneste visning gemmes på telefonen, så appen åbner med det samme.
   var CACHE_KEY = 'tgh_traenertimer_cache';
+  var CFG_KEY = 'tgh_traenertimer_cfg';
   var hist = null;
   function saveCache() { if (!data) return; store(CACHE_KEY, JSON.stringify({ cfg: cfg, state: data, history: hist })); }
   function readCache() { try { return JSON.parse(load(CACHE_KEY) || 'null'); } catch (e) { return null; } }
@@ -726,6 +751,7 @@
             h('div', { class: 'what' },
               h('div', { class: 't', style: 'text-transform:capitalize', text: x.label }),
               h('div', { class: 's note', style: 'color:var(--muted)', text: num(x.timer) + ' t · løn ' + kr(x.lon) + (extra.length ? ' · ' + extra.join(' · ') : '') }),
+              x.late && x.late.length ? h('div', { class: 's note', text: 'Heraf ' + x.late.map(function (l) { return num(l.timer) + ' t fra ' + l.month; }).join(' og ') + ' (indsendt efter fristen)' }) : null,
               h('div', { class: 's', text: (x.status === 'Udbetalt' ? 'Udbetalt ' : 'Udbetales ') + x.payout }),
               h('span', { class: cls, text: x.status }), x.rettet ? h('span', { class: 'badge warn', style: 'margin-left:6px', text: 'Rettet af kasserer' }) : null),
             h('div', { class: 'amt' }, h('b', { text: kr(x.total) }),
@@ -857,21 +883,28 @@
   }
 
   token = load(TOKEN_KEY);
+  try { var cc = JSON.parse(load(CFG_KEY) || 'null'); if (cc) cfg = cc; } catch (e) {}
   var cached = token ? readCache() : null;
+  var notFramed = !(window.location.ancestorOrigins && window.location.ancestorOrigins.length);
+  // Ikke logget ind: vis login-siden med det samme – serveren skal ikke vækkes for at vise den.
+  if (!token && notFramed) showLogin();
   if (cached && cached.state && cached.cfg) {
     cfg = cached.cfg;
     if (framedByStranger()) { showGuard(); return; }
     hist = cached.history || null;
     setData(cached.state, 'cache');   // vis med det samme – opdateres når serveren svarer
   }
+  var shownLogin = !token && notFramed;
   call('apiBoot', token || null).then(function (res) {
     cfg = res.config || cfg;
+    store(CFG_KEY, JSON.stringify(cfg));
     if (framedByStranger()) { showGuard(); return; }
-    if (!token) { showLogin(); return; }
+    if (!token) { if (!shownLogin) showLogin(); return; }
     if (res.authError) { handle(new Error(res.authError)); return; }
     hist = res.history || null;
     setData(res.state, 'boot');
   }).catch(function (e) {
+    if (shownLogin) return; // login-siden virker uden; selve login prøver igen
     if (data) toast('Ingen forbindelse – viser det senest hentede.', true);
     else { mount(h('div', { class: 'loading' }, h('div', { style: 'text-align:center;padding:24px' }, h('p', { text: e.message }), h('button', { class: 'btn primary', style: 'width:auto', text: 'Prøv igen', onclick: function () { location.reload(); } })))); }
   });
