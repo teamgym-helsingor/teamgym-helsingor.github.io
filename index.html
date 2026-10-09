@@ -61,7 +61,7 @@
   .club { font-size: 13px; opacity: .75; letter-spacing: .02em; }
   .hello { font-size: 24px; font-weight: 700; margin-top: 2px; }
   .iconbtn { background: rgba(255,255,255,.12); border: 0; color: #fff; width: 40px; height: 40px; border-radius: 12px; font-size: 20px; cursor: pointer; }
-  .menu { position: absolute; z-index: 25; right: 16px; top: 64px; background: var(--card); color: var(--ink); border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.18); overflow: hidden; z-index: 20; min-width: 180px; border: 1px solid var(--line); }
+  .menu { position: fixed; right: max(16px, calc((100vw - 560px) / 2)); top: calc(env(safe-area-inset-top) + 66px); background: var(--card); color: var(--ink); border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.18); overflow: hidden; z-index: 40; min-width: 200px; border: 1px solid var(--line); }
   .menu button { display: block; width: 100%; text-align: left; padding: 13px 16px; background: none; border: 0; cursor: pointer; }
   .menu button + button { border-top: 1px solid var(--line); }
 
@@ -468,6 +468,7 @@
       h('button', { text: 'Log ud', onclick: logout }));
     var menuBtn = h('button', { class: 'iconbtn', 'aria-label': 'Menu', text: '⋯', onclick: function (ev) { ev.stopPropagation(); menu.classList.toggle('hidden'); } });
     document.onclick = function () { menu.classList.add('hidden'); };
+    window.onscroll = function () { menu.classList.add('hidden'); };
 
     var chips = h('div', { class: 'chips' }, data.periods.map(function (q) {
       return h('button', { class: 'chip' + (q.key === p.key ? ' on' : ''), text: q.short, onclick: function () { ui.period = q.key; render(); } });
@@ -496,7 +497,8 @@
         h('div', { class: 'brandrow' }, logo(), h('div', null, h('div', { class: 'club', text: data.forening }), h('div', { class: 'hello', text: 'Hej ' + first(data.profile.navn) }))),
         menuBtn), menu),
       h('div', { class: 'wrap' }, summary, tabs, list,
-        h('div', { class: 'foot', text: 'Timeløn ' + kr(data.profile.rate) + ' · ' + (data.profile.hold.join(', ') || 'ingen hold') })),
+        h('div', { class: 'foot' }, 'Timeløn ' + kr(data.profile.rate) + ' · ' + (data.profile.hold.join(', ') || 'ingen hold'),
+          h('br'), h('button', { class: 'histbtn', style: 'margin-top:6px', text: 'Log ud', onclick: logout }))),
       fab));
   }
 
