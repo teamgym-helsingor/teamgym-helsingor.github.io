@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Trænertimer</title>
+<!--
+  ▼▼▼  Indsæt jeres Web app URL (slutter på /exec) her  ▼▼▼  -->
+<meta name="app-url" content="https://script.google.com/macros/s/AKfycbwILPIg5DeTGVBfF7xo7W6EEM7O_IQqmiMewLRS1BYER9QoASYMI-vlvfV8C1cSnrc4Bw/exec">
+<!-- ▲▲▲ ──────────────────────────────────────────────── ▲▲▲ -->
+<meta name="description" content="Timeregistrering for trænere i TeamGym Helsingør">
+<meta name="theme-color" content="#004786">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Trænertimer">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="application-name" content="Trænertimer">
+<meta name="referrer" content="no-referrer">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f1f5fa; --card: #ffffff; --ink: #0b1f33; --muted: #5b6b7d; --line: #dfe7f0;
+    --brand: #004786; --brand-2: #00335f; --brand-ink: #ffffff; --sky: #009fe2; --link: #0077b3;
+    --accent: #004786; --accent-ink: #ffffff; --accent-shadow: rgba(0,71,134,.28);
+    --ok: #13803d; --warn: #b45309; --bad: #c0262d; --chip: #e5eef7; --field: #f7fafd;
+    --shadow: 0 1px 2px rgba(0,40,80,.06), 0 6px 18px rgba(0,40,80,.07);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #06131f; --card: #0c1f33; --ink: #e6eef6; --muted: #93a7bb; --line: #1c3450;
+      --brand: #00335f; --brand-2: #00203d; --link: #4cc3f5;
+      --accent: #009fe2; --accent-ink: #00203d; --accent-shadow: rgba(0,159,226,.25);
+      --chip: #142c45; --field: #0a1a2b; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  .pbar { position: fixed; left: 0; right: 0; top: 0; height: calc(3px + env(safe-area-inset-top)); z-index: 100; pointer-events: none; overflow: hidden; opacity: 0; transition: opacity .2s; }
+  .pbar.on { opacity: 1; }
+  .pbar::before { content: ""; position: absolute; left: 0; bottom: 0; height: 3px; width: 40%; border-radius: 3px; background: #009fe2; animation: pbar 1.1s ease-in-out infinite; }
+  @keyframes pbar { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+  @media (prefers-reduced-motion: reduce) { .pbar::before { animation: none; width: 100%; opacity: .7; } }
+  body { font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  button, input, select { font: inherit; color: inherit; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 0 16px 120px; }
+  .hidden { display: none !important; }
+
+  /* Header */
+  .top { color: var(--brand-ink); padding: 18px 16px 52px; position: relative; overflow: hidden;
+    background: radial-gradient(120% 90% at 105% -10%, rgba(0,159,226,.55) 0 28%, transparent 29%),
+                radial-gradient(90% 70% at 110% -5%, rgba(0,159,226,.25) 0 45%, transparent 46%),
+                linear-gradient(160deg, var(--brand) 0%, var(--brand-2) 100%); }
+  .brandrow { display: flex; align-items: center; gap: 12px; }
+  .logo { width: 48px; height: 48px; border-radius: 50%; flex: none; box-shadow: 0 2px 10px rgba(0,0,0,.25); background: #fff; }
+  .login .logo { width: 92px; height: 92px; margin-bottom: 14px; }
+  .top .in { max-width: 560px; margin: 0 auto; padding: 0 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .club { font-size: 13px; opacity: .75; letter-spacing: .02em; }
+  .hello { font-size: 24px; font-weight: 700; margin-top: 2px; }
+  .iconbtn { background: rgba(255,255,255,.12); border: 0; color: #fff; width: 40px; height: 40px; border-radius: 12px; font-size: 20px; cursor: pointer; }
+  .menu { position: absolute; z-index: 25; right: 16px; top: 64px; background: var(--card); color: var(--ink); border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.18); overflow: hidden; z-index: 20; min-width: 180px; border: 1px solid var(--line); }
+  .menu button { display: block; width: 100%; text-align: left; padding: 13px 16px; background: none; border: 0; cursor: pointer; }
+  .menu button + button { border-top: 1px solid var(--line); }
+
+  /* Kort */
+  .card { background: var(--card); border-radius: 16px; box-shadow: var(--shadow); border: 1px solid var(--line); }
+  .summary { margin-top: -36px; padding: 16px; position: relative; z-index: 1; }
+  .chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-bottom: 14px; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex: 1 0 auto; border: 0; background: var(--chip); color: var(--ink); padding: 8px 12px; border-radius: 999px; font-size: 14px; font-weight: 600; cursor: pointer; text-transform: capitalize; }
+  .chip.on { background: var(--sky); color: #fff; }
+  .month { font-size: 14px; color: var(--muted); text-transform: capitalize; display: flex; justify-content: space-between; align-items: center; }
+  .histbtn { border: 0; background: none; color: var(--link); font-weight: 700; font-size: 14px; cursor: pointer; padding: 4px 0; text-transform: none; }
+  .note { color: var(--link); font-size: 13px; white-space: normal !important; }
+  .yr { display: flex; justify-content: space-between; font-weight: 800; font-size: 15px; padding: 18px 4px 8px; }
+  .badge.ok { background: #dcfce7; color: #166534; }
+  .badge.sky { background: #e0f2fe; color: #075985; }
+  @media (prefers-color-scheme: dark) { .badge.ok { background: #12391f; color: #86efac; } .badge.sky { background: #0b3550; color: #7dd3fc; } .badge.warn { background: #3d2a08; color: #fcd34d; } }
+  .big { display: flex; align-items: baseline; gap: 14px; margin: 4px 0 6px; flex-wrap: wrap; }
+  .big .h { font-size: 34px; font-weight: 800; letter-spacing: -.02em; }
+  .big .kr { font-size: 18px; font-weight: 600; color: var(--muted); }
+  .deadline { font-size: 14px; display: flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sky); display: inline-block; }
+  .dot.closed { background: var(--muted); }
+
+  /* Faner */
+  .tabs { display: flex; gap: 4px; background: var(--chip); padding: 4px; border-radius: 12px; margin: 18px 0 10px; }
+  .tab { flex: 1; border: 0; background: none; padding: 9px 6px; border-radius: 9px; font-weight: 600; font-size: 14px; color: var(--muted); cursor: pointer; }
+  .tab.on { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
+
+  /* Liste */
+  .list { padding: 4px 0; }
+  .item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+  .item + .item { border-top: 1px solid var(--line); }
+  .date { width: 46px; text-align: center; flex: none; }
+  .date b { display: block; font-size: 20px; line-height: 1.1; }
+  .date span { font-size: 12px; color: var(--muted); }
+  .what { flex: 1; min-width: 0; }
+  .what .t { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .what .s { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .amt { text-align: right; flex: none; }
+  .amt b { display: block; }
+  .amt span { font-size: 12px; color: var(--muted); }
+  .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: var(--chip); color: var(--muted); margin-top: 3px; }
+  .badge.warn { background: #fef3c7; color: #92400e; }
+  .del { border: 0; background: none; color: var(--muted); width: 36px; height: 36px; border-radius: 10px; cursor: pointer; flex: none; font-size: 17px; }
+  .del.confirm { background: var(--bad); color: #fff; width: auto; padding: 0 10px; font-size: 13px; font-weight: 700; }
+  .empty { text-align: center; padding: 28px 16px; color: var(--muted); }
+  .empty p { margin: 0 0 14px; }
+
+  /* Knapper og felter */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 12px; padding: 14px 18px; font-weight: 700; cursor: pointer; width: 100%; font-size: 16px; }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); }
+  .btn.ghost { background: var(--chip); color: var(--ink); }
+  .btn.link { background: none; color: var(--link); padding: 10px; width: auto; font-weight: 600; }
+  .btn[disabled] { opacity: .5; cursor: default; }
+  .fab { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 70%, transparent); z-index: 5; }
+  .fab .btn { max-width: 528px; margin: 0 auto; display: flex; box-shadow: 0 6px 20px var(--accent-shadow); }
+  label.f { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin: 12px 0 5px; }
+  .in-f { width: 100%; padding: 12px 13px; border: 1px solid var(--line); border-radius: 11px; background: var(--field); font-size: 16px; min-height: 48px; -webkit-appearance: none; appearance: none; }
+  select.in-f { background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 18px) 21px, calc(100% - 13px) 21px; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 32px; }
+  .in-f:focus { outline: 2px solid var(--sky); outline-offset: 0; border-color: transparent; }
+  .pw { position: relative; }
+  .pw button { position: absolute; right: 6px; top: 6px; height: 36px; border: 0; background: none; color: var(--muted); font-size: 13px; font-weight: 600; padding: 0 10px; cursor: pointer; }
+  .err { color: var(--bad); font-size: 14px; margin-top: 12px; min-height: 1em; }
+  .hint { color: var(--muted); font-size: 14px; }
+
+  /* Login */
+  .login { min-height: 100vh; display: flex; flex-direction: column; }
+  .login .top { padding: 40px 16px 70px; text-align: center; }
+  .login .top h1 { margin: 6px 0 0; font-size: 28px; }
+  .login .card { margin-top: -44px; padding: 20px; position: relative; z-index: 1; }
+  .rules { list-style: none; padding: 0; margin: 10px 0 0; font-size: 14px; }
+  .rules li { padding: 3px 0; color: var(--muted); }
+  .rules li::before { content: "○"; display: inline-block; width: 22px; }
+  .rules li.ok { color: var(--ok); }
+  .foot a, .foot .histbtn { color: var(--link); }
+  .rules li.ok::before { content: "✓"; font-weight: 800; }
+
+  /* Ark (modal) */
+  .sheet-bg { position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 30; display: flex; align-items: flex-end; justify-content: center; }
+  .sheet { background: var(--bg); width: 100%; max-width: 560px; max-height: 94vh; border-radius: 20px 20px 0 0; display: flex; flex-direction: column; animation: up .2s ease-out; }
+  @keyframes up { from { transform: translateY(30px); opacity: .5; } to { transform: none; opacity: 1; } }
+  .sheet header { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 8px; }
+  .sheet header h2 { margin: 0; font-size: 20px; }
+  .sheet .x { border: 0; background: var(--chip); width: 36px; height: 36px; border-radius: 50%; font-size: 18px; cursor: pointer; }
+  .sheet .body { overflow-y: auto; padding: 0 16px 12px; -webkit-overflow-scrolling: touch; }
+  .sheet footer { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--card); }
+  .sheet footer .sum { font-size: 14px; color: var(--muted); text-align: center; margin-bottom: 8px; }
+  .row-card { padding: 4px 14px 14px; margin-top: 12px; position: relative; }
+  .row-card .rm { position: absolute; top: 8px; right: 8px; border: 0; background: none; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; padding: 6px; }
+  .row-card .n { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; padding-top: 10px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stepper { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 11px; background: var(--field); min-height: 48px; overflow: hidden; }
+  .stepper button { width: 44px; height: 46px; border: 0; background: none; font-size: 22px; font-weight: 600; cursor: pointer; color: var(--sky); }
+  .stepper output { flex: 1; text-align: center; font-weight: 700; }
+  .seg { display: flex; gap: 4px; background: var(--chip); padding: 4px; border-radius: 12px; margin-top: 6px; }
+  .seg button { flex: 1; border: 0; background: none; padding: 10px; border-radius: 9px; font-weight: 700; color: var(--muted); cursor: pointer; }
+  .seg button.on { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
+  .file { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1.5px dashed var(--line); border-radius: 11px; cursor: pointer; background: var(--field); }
+  .file img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; }
+  .calc { font-size: 14px; color: var(--muted); margin-top: 6px; }
+  .paper { background: #fff; color: #0b1f33; border-radius: 14px; padding: 18px 14px; margin-top: 6px; overflow-x: auto; color-scheme: light; }
+  .paper table { font-size: 13px; }
+
+  .toast { position: fixed; left: 50%; top: calc(14px + env(safe-area-inset-top)); transform: translateX(-50%); background: #0b1f33; color: #fff; padding: 12px 16px; border-radius: 12px; font-size: 15px; z-index: 50; max-width: calc(100% - 32px); box-shadow: 0 8px 30px rgba(0,0,0,.25); text-align: center; }
+  .toast.bad { background: var(--bad); }
+  .spin { width: 18px; height: 18px; border: 2.5px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: sp .7s linear infinite; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  .loading { min-height: 100vh; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+  .foot { text-align: center; font-size: 13px; color: var(--muted); margin-top: 22px; }
+  .foot a { color: inherit; }
+</style>
+</head>
+<body>
+<img id="logo-src" alt="" hidden src="">
+<div id="app"><div class="loading">Indlæser…</div></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var MONTHS = ['januar','februar','marts','april','maj','juni','juli','august','september','oktober','november','december'];
+  var WD = ['søn','man','tir','ons','tor','fre','lør'];
+  var TOKEN_KEY = 'tgh_traenertimer_token';
+  var app = document.getElementById('app');
+  var LOGO = (function () { var el = document.getElementById('logo-src'); return el && el.getAttribute('src').length > 40 ? el.getAttribute('src') : ''; })();
+  if (!LOGO && !(window.google && google.script && google.script.run)) LOGO = 'logo.png';
+  function logo() { return LOGO ? h('img', { class: 'logo', src: LOGO, alt: 'TeamGym Helsingør' }) : null; }
+  var cfg = { forening: 'Trænertimer', kasserer: '', minLen: 10 };
+  var token = null, data = null;
+  var ui = { period: null, tab: 'timer' };
+
+  // ── Hjælpere ──────────────────────────────────────────────
+  // Kører enten inde hos Google (google.script.run) eller på foreningens egen side (fetch til /exec).
+  var IN_GAS = !!(window.google && google.script && google.script.run);
+  var API_URL = (function () { var m = document.querySelector('meta[name="app-url"]'); return m ? m.getAttribute('content').trim() : ''; })();
+  function cleanErr(m) { return String(m || 'Noget gik galt. Prøv igen.').replace(/^(Error|Exception):\s*/i, ''); }
+  // Tynd blå arbejdsbjælke i toppen, mens appen venter på serveren.
+  var pending = 0, pbarEl = null, pbarTimer = null;
+  function progress(on) {
+    pending = Math.max(0, pending + (on ? 1 : -1));
+    if (!pbarEl) { pbarEl = document.createElement('div'); pbarEl.className = 'pbar'; pbarEl.setAttribute('aria-hidden', 'true'); document.body.appendChild(pbarEl); }
+    clearTimeout(pbarTimer);
+    if (pending) pbarTimer = setTimeout(function () { pbarEl.classList.add('on'); }, 120);
+    else pbarEl.classList.remove('on');
+  }
+  function call(fn) {
+    progress(true);
+    return callRaw.apply(null, arguments).then(function (r) { progress(false); return r; }, function (e) { progress(false); throw e; });
+  }
+  function callQuiet() { return callRaw.apply(null, arguments); }
+  function callRaw(fn) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    if (IN_GAS) {
+      return new Promise(function (res, rej) {
+        var r = google.script.run.withSuccessHandler(res).withFailureHandler(function (e) { rej(new Error(cleanErr((e && e.message) || e))); });
+        r[fn].apply(r, args);
+      });
+    }
+    if (!/^https:\/\/script\.google\.com\/.+\/exec/.test(API_URL)) return Promise.reject(new Error('Appen mangler linket til serveren. Kontakt kassereren.'));
+    return fetch(API_URL, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args }) })
+      .then(function (r) { if (!r.ok) throw new Error('NET'); return r.json(); }, function () { throw new Error('NET'); })
+      .then(function (j) { if (!j.ok) throw new Error(cleanErr(j.error)); return j.result; })
+      .catch(function (e) { throw e.message === 'NET' ? new Error('Ingen forbindelse til serveren. Tjek dit net og prøv igen.') : e; });
+  }
+
+  // Seneste visning gemmes på telefonen, så appen åbner med det samme.
+  var CACHE_KEY = 'tgh_traenertimer_cache';
+  var hist = null;
+  function saveCache() { if (!data) return; store(CACHE_KEY, JSON.stringify({ cfg: cfg, state: data, history: hist })); }
+  function readCache() { try { return JSON.parse(load(CACHE_KEY) || 'null'); } catch (e) { return null; } }
+  function store(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+
+  function h(tag, attrs) {
+    var el = document.createElement(tag);
+    attrs = attrs || {};
+    Object.keys(attrs).forEach(function (k) {
+      var v = attrs[k];
+      if (v === null || v === undefined || v === false) return;
+      if (k === 'class') el.className = v;
+      else if (k === 'text') el.textContent = v;
+      else if (k.slice(0, 2) === 'on') el.addEventListener(k.slice(2), v);
+      else if (k === 'value') el.value = v;
+      else el.setAttribute(k, v === true ? '' : v);
+    });
+    for (var i = 2; i < arguments.length; i++) add(el, arguments[i]);
+    return el;
+  }
+  function add(el, c) {
+    if (c === null || c === undefined || c === false) return;
+    if (Array.isArray(c)) { c.forEach(function (x) { add(el, x); }); return; }
+    el.appendChild(typeof c === 'string' || typeof c === 'number' ? document.createTextNode(String(c)) : c);
+  }
+  function mount(node) { app.innerHTML = ''; app.appendChild(node); }
+
+  function num(n) { return String(Math.round(n * 100) / 100).replace('.', ','); }
+  function kr(n) { return (Math.round(n * 100) / 100).toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' kr'; }
+  function dParts(s) { var d = new Date(+s.slice(0,4), +s.slice(5,7) - 1, +s.slice(8,10)); return { day: d.getDate(), wd: WD[d.getDay()], mon: MONTHS[d.getMonth()].slice(0,3) }; }
+  function monthName(key) { return MONTHS[+key.slice(5,7) - 1]; }
+  function addDays(s, n) { var d = new Date(+s.slice(0,4), +s.slice(5,7) - 1, +s.slice(8,10) + n); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  function lastDay(key) { var d = new Date(+key.slice(0,4), +key.slice(5,7), 0); return key + '-' + ('0' + d.getDate()).slice(-2); }
+  function first(name) { return String(name || '').split(' ')[0]; }
+
+  var toastTimer;
+  function toast(msg, bad) {
+    var old = document.querySelector('.toast'); if (old) old.remove();
+    var t = h('div', { class: 'toast' + (bad ? ' bad' : ''), role: 'status', text: msg });
+    document.body.appendChild(t);
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.remove(); }, bad ? 5000 : 3200);
+  }
+
+  function busy(btn, on, label) {
+    if (!btn) return;
+    if (on) { btn._label = btn._label || btn.textContent; btn.disabled = true; btn.innerHTML = ''; btn.appendChild(h('span', { class: 'spin' })); }
+    else { btn.disabled = false; btn.textContent = label || btn._label; btn._label = null; }
+  }
+
+  function handle(e, errEl) {
+    var m = e && e.message || 'Noget gik galt. Prøv igen.';
+    if (m === 'AUTH') { setToken(null); showLogin('Du er blevet logget ud. Log ind igen.'); return; }
+    if (m === 'MUSTCHANGE') { showChangePw(true); return; }
+    if (errEl) errEl.textContent = m; else toast(m, true);
+  }
+
+  function setToken(t) { token = t; store(TOKEN_KEY, t); if (!t) { store(CACHE_KEY, null); hist = null; } }
+
+  function pwChecks(pw, mail) {
+    var local = String(mail || '').split('@')[0].toLowerCase();
+    return [
+      ['Mindst ' + cfg.minLen + ' tegn', pw.length >= cfg.minLen],
+      ['Et lille bogstav', /[a-zæøå]/.test(pw)],
+      ['Et stort bogstav', /[A-ZÆØÅ]/.test(pw)],
+      ['Et tal', /[0-9]/.test(pw)],
+      ['Et specialtegn (fx ! ? - # %)', /[^A-Za-z0-9æøåÆØÅ]/.test(pw)],
+      ['Må ikke indeholde din mail', !(local.length >= 4 && pw.toLowerCase().indexOf(local) >= 0)]
+    ];
+  }
+
+  function pwField(id, placeholder, autocomplete) {
+    var input = h('input', { class: 'in-f', id: id, type: 'password', autocomplete: autocomplete, placeholder: placeholder || '', autocapitalize: 'off', spellcheck: 'false' });
+    var tgl = h('button', { type: 'button', text: 'Vis', onclick: function () {
+      input.type = input.type === 'password' ? 'text' : 'password';
+      tgl.textContent = input.type === 'password' ? 'Vis' : 'Skjul';
+    } });
+    return { wrap: h('div', { class: 'pw' }, input, tgl), input: input };
+  }
+
+  // ── Login ─────────────────────────────────────────────────
+  function showLogin(msg) {
+    var mail = h('input', { class: 'in-f', type: 'email', autocomplete: 'username', inputmode: 'email', autocapitalize: 'off', placeholder: 'din@mail.dk', value: load('tgh_mail') || '' });
+    var pw = pwField('pw', '', 'current-password');
+    var err = h('div', { class: 'err', text: msg || '' });
+    var btn = h('button', { class: 'btn primary', type: 'submit', text: 'Log ind' });
+    var form = h('form', { onsubmit: function (ev) {
+      ev.preventDefault();
+      err.textContent = '';
+      if (!mail.value.trim() || !pw.input.value) { err.textContent = 'Skriv din mail og kode.'; return; }
+      busy(btn, true);
+      call('apiLogin', mail.value.trim(), pw.input.value).then(function (r) {
+        store('tgh_mail', mail.value.trim());
+        setToken(r.token);
+        if (r.mustChange) showChangePw(true, pw.input.value);
+        else if (r.state) { hist = r.history || null; setData(r.state, 'boot'); }
+        else refresh();
+      }).catch(function (e) { busy(btn, false); handle(e, err); });
+    } },
+      h('label', { class: 'f', for: 'm', text: 'Mail' }), mail,
+      h('label', { class: 'f', for: 'pw', text: 'Kode' }), pw.wrap,
+      err, h('div', { style: 'height:8px' }), btn
+    );
+    mail.id = 'm';
+    mount(h('div', { class: 'login' },
+      h('div', { class: 'top' }, h('div', { class: 'in', style: 'display:block' },
+        logo(), h('div', { class: 'club', text: cfg.forening }), h('h1', { text: 'Trænertimer' }))),
+      h('div', { class: 'wrap' },
+        h('div', { class: 'card' }, form),
+        h('div', { class: 'foot' }, 'Glemt koden? Skriv til kassereren',
+          cfg.kasserer ? [h('br'), h('a', { href: 'mailto:' + cfg.kasserer, text: cfg.kasserer })] : null)
+      )
+    ));
+    (mail.value ? pw.input : mail).focus();
+  }
+
+  // ── Skift kode ────────────────────────────────────────────
+  function showChangePw(forced, oldPrefill) {
+    var mailAddr = (data && data.profile.mail) || load('tgh_mail') || '';
+    var oldF = pwField('old', '', 'current-password');
+    if (oldPrefill) oldF.input.value = oldPrefill;
+    var n1 = pwField('n1', '', 'new-password');
+    var n2 = pwField('n2', '', 'new-password');
+    var rules = h('ul', { class: 'rules' });
+    var err = h('div', { class: 'err' });
+    var btn = h('button', { class: 'btn primary', type: 'submit', text: 'Gem ny kode', disabled: true });
+    function upd() {
+      rules.innerHTML = '';
+      var checks = pwChecks(n1.input.value, mailAddr);
+      checks.push(['De to koder er ens', n1.input.value.length > 0 && n1.input.value === n2.input.value]);
+      var all = true;
+      checks.forEach(function (c) { all = all && c[1]; rules.appendChild(h('li', { class: c[1] ? 'ok' : '', text: c[0] })); });
+      btn.disabled = !all || !oldF.input.value;
+    }
+    [oldF.input, n1.input, n2.input].forEach(function (i) { i.addEventListener('input', upd); });
+    var form = h('form', { onsubmit: function (ev) {
+      ev.preventDefault();
+      err.textContent = '';
+      busy(btn, true);
+      call('apiChangePassword', token, oldF.input.value, n1.input.value).then(function (st) {
+        setData(st);
+        toast('Din nye kode er gemt ✓');
+      }).catch(function (e) { busy(btn, false, 'Gem ny kode'); upd(); handle(e, err); });
+    } },
+      h('div', { class: oldPrefill ? 'hidden' : '' },
+        h('label', { class: 'f', for: 'old', text: forced ? 'Midlertidig kode' : 'Nuværende kode' }), oldF.wrap),
+      h('label', { class: 'f', for: 'n1', text: 'Ny kode' }), n1.wrap,
+      h('label', { class: 'f', for: 'n2', text: 'Gentag ny kode' }), n2.wrap,
+      rules, err, h('div', { style: 'height:8px' }), btn,
+      !forced ? h('button', { class: 'btn link', type: 'button', style: 'width:100%;margin-top:6px', text: 'Annullér', onclick: function () { render(); } }) : null,
+      forced ? h('button', { class: 'btn link', type: 'button', style: 'width:100%;margin-top:6px', text: 'Log ud', onclick: logout }) : null
+    );
+    upd();
+    mount(h('div', { class: 'login' },
+      h('div', { class: 'top' }, h('div', { class: 'in', style: 'display:block' },
+        logo(), h('div', { class: 'club', text: cfg.forening }), h('h1', { text: forced ? 'Vælg din egen kode' : 'Skift kode' }))),
+      h('div', { class: 'wrap' }, h('div', { class: 'card' },
+        forced ? h('p', { class: 'hint', style: 'margin-top:0', text: 'Du er logget ind med en midlertidig kode. Vælg nu en kode, som kun du kender.' }) : null,
+        form))
+    ));
+    (oldPrefill ? n1.input : oldF.input).focus();
+  }
+
+  function logout() {
+    var t = token;
+    setToken(null);
+    data = null;
+    call('apiLogout', t).catch(function () {});
+    showLogin('Du er logget ud.');
+  }
+
+  // ── Hovedskærm ────────────────────────────────────────────
+  function refresh() {
+    return call('apiGetState', token).then(function (st) { setData(st); }).catch(function (e) { handle(e); });
+  }
+
+  var prefetchTimer;
+  /** mode: 'cache' (fra telefonen), 'boot' (med historik), ellers efter en ændring. */
+  function setData(st, mode) {
+    data = st;
+    if (mode !== 'cache') {
+      if (mode !== 'boot') {
+        // Noget er ændret – hent historikken i baggrunden, så den er klar.
+        hist = null;
+        clearTimeout(prefetchTimer);
+        prefetchTimer = setTimeout(function () { callQuiet('apiGetHistory', token).then(function (r) { hist = r; saveCache(); }).catch(function () {}); }, 1200);
+      }
+      saveCache();
+    }
+    if (!ui.period || !st.periods.some(function (p) { return p.key === ui.period; })) {
+      var prev = st.periods[st.periods.length - 2], cur = st.periods[st.periods.length - 1];
+      ui.period = prev.open ? prev.key : cur.key;
+    }
+    render();
+  }
+
+  function period() { return data.periods.filter(function (p) { return p.key === ui.period; })[0]; }
+
+  function render() {
+    var p = period();
+    var regs = data.regs.filter(function (r) { return r.work === p.key; });
+    var exps = data.exps.filter(function (x) { return x.work === p.key; });
+    var hours = regs.reduce(function (s, r) { return s + r.timer; }, 0);
+    var amount = regs.reduce(function (s, r) { return s + r.belob; }, 0) + exps.reduce(function (s, x) { return s + x.belob; }, 0);
+    var payoutPassed = data.today >= p.payoutDate;
+
+    var menu = h('div', { class: 'menu hidden' },
+      h('button', { text: 'Min historik', onclick: openHistory }),
+      h('button', { text: 'Skift kode', onclick: function () { showChangePw(false); } }),
+      h('button', { text: 'Log ud', onclick: logout }));
+    var menuBtn = h('button', { class: 'iconbtn', 'aria-label': 'Menu', text: '⋯', onclick: function (ev) { ev.stopPropagation(); menu.classList.toggle('hidden'); } });
+    document.onclick = function () { menu.classList.add('hidden'); };
+
+    var chips = h('div', { class: 'chips' }, data.periods.map(function (q) {
+      return h('button', { class: 'chip' + (q.key === p.key ? ' on' : ''), text: q.short, onclick: function () { ui.period = q.key; render(); } });
+    }));
+
+    var summary = h('div', { class: 'card summary' },
+      chips,
+      h('div', { class: 'month' }, h('span', { text: p.label }), h('button', { class: 'histbtn', text: 'Historik ›', onclick: openHistory })),
+      h('div', { class: 'big' }, h('span', { class: 'h', text: num(hours) + ' t' }), h('span', { class: 'kr', text: kr(amount) })),
+      h('div', { class: 'deadline' },
+        h('span', { class: 'dot' + (p.open ? '' : ' closed') }),
+        p.open ? 'Frist ' + p.deadline + ' · udbetales ' + p.payout
+               : 'Afsluttet · ' + (payoutPassed ? 'udbetalt ' : 'udbetales ') + p.payout)
+    );
+
+    var tabs = h('div', { class: 'tabs' },
+      h('button', { class: 'tab' + (ui.tab === 'timer' ? ' on' : ''), text: 'Træninger' + (regs.length ? ' (' + regs.filter(function (r) { return r.timer > 0; }).length + ')' : ''), onclick: function () { ui.tab = 'timer'; render(); } }),
+      h('button', { class: 'tab' + (ui.tab === 'udlaeg' ? ' on' : ''), text: 'Kørsel & udlæg' + (exps.length ? ' (' + exps.length + ')' : ''), onclick: function () { ui.tab = 'udlaeg'; render(); } }));
+
+    var list = ui.tab === 'timer' ? regList(regs, p) : expList(exps, p);
+    var fab = h('div', { class: 'fab' }, h('button', { class: 'btn primary', text: ui.tab === 'timer' ? '+ Registrér træning' : '+ Tilføj kørsel eller udlæg',
+      onclick: function () { if (ui.tab === 'timer') openRegForm(p); else openExpForm(p); } }));
+
+    mount(h('div', null,
+      h('div', { class: 'top', style: 'position:relative' }, h('div', { class: 'in' },
+        h('div', { class: 'brandrow' }, logo(), h('div', null, h('div', { class: 'club', text: data.forening }), h('div', { class: 'hello', text: 'Hej ' + first(data.profile.navn) }))),
+        menuBtn), menu),
+      h('div', { class: 'wrap' }, summary, tabs, list,
+        h('div', { class: 'foot', text: 'Timeløn ' + kr(data.profile.rate) + ' · ' + (data.profile.hold.join(', ') || 'ingen hold') })),
+      fab));
+  }
+
+  function addMonthKey(key, n) {
+    var y = +key.slice(0,4), m = +key.slice(5,7) - 1 + n;
+    y += Math.floor(m / 12); m = ((m % 12) + 12) % 12;
+    return y + '-' + ('0' + (m + 1)).slice(-2);
+  }
+
+  function delBtn(onDelete) {
+    var b = h('button', { class: 'del', 'aria-label': 'Slet', text: '🗑' });
+    var armed = false, timer;
+    b.addEventListener('click', function () {
+      if (!armed) {
+        armed = true; b.classList.add('confirm'); b.textContent = 'Slet?';
+        timer = setTimeout(function () { armed = false; b.classList.remove('confirm'); b.textContent = '🗑'; }, 3000);
+        return;
+      }
+      clearTimeout(timer);
+      busy(b, true);
+      onDelete().catch(function (e) { busy(b, false, '🗑'); b.classList.remove('confirm'); armed = false; handle(e); });
+    });
+    return b;
+  }
+
+  function statusBadge(r) {
+    if (r.pay !== r.work) return h('span', { class: 'badge warn', text: 'Med ' + r.payLabel.split(' ')[0] + '-lønnen' });
+    if (r.status === 'Afvist') return h('span', { class: 'badge warn', text: 'Afvist – kontakt kasserer' });
+    if (!r.editable) return h('span', { class: 'badge', text: 'Afregnet' });
+    return null;
+  }
+
+  function regList(regs, p) {
+    if (!regs.length) {
+      return h('div', { class: 'card empty' },
+        h('p', { text: 'Ingen træninger registreret for ' + monthName(p.key) + '.' }),
+        p.canAdd ? h('button', { class: 'btn ghost', text: 'Jeg havde ingen timer i ' + monthName(p.key), onclick: function (ev) {
+          var b = ev.currentTarget; busy(b, true);
+          call('apiNoHours', token, p.key).then(function (st) { setData(st); toast('Tak – kassereren kan se, at du ingen timer havde.'); })
+            .catch(function (e) { busy(b, false); handle(e); });
+        } }) : null);
+    }
+    return h('div', { class: 'card list' }, regs.map(function (r) {
+      var d = dParts(r.dato);
+      if (r.timer === 0) {
+        return h('div', { class: 'item' },
+          h('div', { class: 'date' }, h('b', { text: '–' })),
+          h('div', { class: 'what' }, h('div', { class: 't', text: 'Ingen timer i ' + monthName(r.work) }), r.note ? h('div', { class: 's note', text: '💬 Kasserer: ' + r.note }) : null, statusBadge(r)),
+          r.editable ? delBtn(function () { return call('apiDeleteRegistration', token, r.id).then(setData); }) : null);
+      }
+      return h('div', { class: 'item' },
+        h('div', { class: 'date' }, h('b', { text: d.day }), h('span', { text: d.wd })),
+        h('div', { class: 'what' }, h('div', { class: 't', text: r.hold }), r.kommentar ? h('div', { class: 's', text: r.kommentar }) : null,
+          r.note ? h('div', { class: 's note', text: '💬 Kasserer: ' + r.note }) : null, statusBadge(r)),
+        h('div', { class: 'amt' }, h('b', { text: num(r.timer) + ' t' }), h('span', { text: kr(r.belob) })),
+        r.editable ? delBtn(function () { return call('apiDeleteRegistration', token, r.id).then(function (st) { setData(st); toast('Slettet'); }); }) : null);
+    }));
+  }
+
+  function expList(exps, p) {
+    if (!exps.length) {
+      return h('div', { class: 'card empty' }, h('p', { text: 'Ingen kørsel eller udlæg i ' + monthName(p.key) + '.' }),
+        h('p', { class: 'hint', text: 'Kørsel til konkurrencer og udlæg med kvittering registreres her.' }));
+    }
+    return h('div', { class: 'card list' }, exps.map(function (x) {
+      var d = dParts(x.dato);
+      return h('div', { class: 'item' },
+        h('div', { class: 'date' }, h('b', { text: d.day }), h('span', { text: d.wd })),
+        h('div', { class: 'what' }, h('div', { class: 't', text: x.type === 'Kørsel' ? 'Kørsel · ' + x.km + ' km' : 'Udlæg' + (x.harBilag ? ' · 📎' : '') }),
+          h('div', { class: 's', text: x.beskrivelse }), x.note ? h('div', { class: 's note', text: '💬 Kasserer: ' + x.note }) : null, statusBadge(x)),
+        h('div', { class: 'amt' }, h('b', { text: kr(x.belob) })),
+        x.editable ? delBtn(function () { return call('apiDeleteExpense', token, x.id).then(function (st) { setData(st); toast('Slettet'); }); }) : null);
+    }));
+  }
+
+  // ── Ark: registrér træninger ──────────────────────────────
+  function openSheet(title, body, footer) {
+    var t0 = document.querySelector('.toast'); if (t0) t0.remove();
+    var bg = h('div', { class: 'sheet-bg', onclick: function (ev) { if (ev.target === bg) close(); } });
+    function close() { bg.remove(); document.body.style.overflow = ''; }
+    bg.appendChild(h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true' },
+      h('header', null, h('h2', { text: title }), h('button', { class: 'x', 'aria-label': 'Luk', text: '✕', onclick: close })),
+      h('div', { class: 'body' }, body), h('footer', null, footer)));
+    document.body.appendChild(bg);
+    document.body.style.overflow = 'hidden';
+    return close;
+  }
+
+  function defaultDate(p) {
+    if (!p.canAdd) return data.today;
+    return p.key === data.today.slice(0, 7) ? data.today : lastDay(p.key);
+  }
+
+  function openRegForm(p) {
+    var own = data.profile.hold;
+    var others = data.allHold.filter(function (x) { return own.map(lc).indexOf(lc(x)) < 0; });
+    var lastReg = data.regs.filter(function (r) { return r.timer > 0 && isOwn(r.hold); }).slice(-1)[0];
+    var rows = [];
+    var listEl = h('div');
+    var err = h('div', { class: 'err' });
+    var sumEl = h('div', { class: 'sum' });
+    var save = h('button', { class: 'btn primary', text: 'Gem' });
+
+    function lc(s) { return String(s).trim().toLowerCase(); }
+    function isOwn(hold) { return !own.length || own.map(lc).indexOf(lc(hold)) >= 0; }
+
+    function newRow(prev) {
+      var r = {
+        dato: prev ? (addDays(prev.dato, 7) <= data.today ? addDays(prev.dato, 7) : prev.dato) : defaultDate(p),
+        hold: prev ? prev.hold : (load('tgh_hold') || (lastReg && lastReg.hold) || own[0] || data.allHold[0] || ''),
+        other: prev ? prev.other : false,
+        timer: prev ? prev.timer : (+(load('tgh_timer')) || (lastReg && lastReg.timer) || 1.5),
+        kommentar: ''
+      };
+      if (!r.other && data.allHold.length && data.allHold.map(lc).indexOf(lc(r.hold)) < 0) r.hold = own[0] || data.allHold[0];
+      if (r.other) r.hold = 'Andet';
+      return r;
+    }
+
+    function draw() {
+      listEl.innerHTML = '';
+      rows.forEach(function (r, i) {
+        var date = h('input', { class: 'in-f', type: 'date', value: r.dato, min: data.minDate, max: data.today, oninput: function () { r.dato = date.value; } });
+        var sel = h('select', { class: 'in-f', onchange: function () {
+            r.other = sel.value === 'Andet';
+            r.hold = sel.value;
+            drawComment();
+            if (r.other) com.focus();
+          } },
+          own.length ? h('optgroup', { label: 'Mine hold' }, own.map(function (x) { return h('option', { value: x, text: x }); })) : null,
+          others.length ? h('optgroup', { label: own.length ? 'Andre hold (vikar)' : 'Hold' }, others.map(function (x) { return h('option', { value: x, text: x }); })) : null,
+          h('option', { value: 'Andet', text: 'Andet' }));
+        sel.value = r.other ? 'Andet' : r.hold;
+        var out = h('output', { text: num(r.timer) + ' t' });
+        function step(d) { r.timer = Math.min(12, Math.max(0.25, Math.round((r.timer + d) * 4) / 4)); out.textContent = num(r.timer) + ' t'; drawSum(); }
+        var stepper = h('div', { class: 'stepper' },
+          h('button', { type: 'button', 'aria-label': 'Færre timer', text: '−', onclick: function () { step(-0.25); } }), out,
+          h('button', { type: 'button', 'aria-label': 'Flere timer', text: '+', onclick: function () { step(0.25); } }));
+        var com = h('input', { class: 'in-f', type: 'text', maxlength: '200', value: r.kommentar, oninput: function () { r.kommentar = com.value; err.textContent = ''; } });
+        var comLabel = h('label', { class: 'f' });
+        function drawComment() {
+          var need = r.other || !isOwn(r.hold);
+          comLabel.textContent = need ? 'Kommentar (skal udfyldes)' : 'Kommentar (valgfri)';
+          com.placeholder = r.other ? 'Fx opvisningshold eller afløser for Ole' : (need ? 'Fx afløser for Anna' : '');
+        }
+        drawComment();
+        listEl.appendChild(h('div', { class: 'card row-card' },
+          rows.length > 1 ? h('div', { class: 'n', text: 'Træning ' + (i + 1) }) : null,
+          rows.length > 1 ? h('button', { class: 'rm', type: 'button', text: 'Fjern', onclick: function () { rows.splice(i, 1); draw(); } }) : null,
+          h('div', { class: 'grid2' },
+            h('div', null, h('label', { class: 'f', text: 'Dato' }), date),
+            h('div', null, h('label', { class: 'f', text: 'Timer' }), stepper)),
+          h('label', { class: 'f', text: 'Hold' }), sel,
+          comLabel, com));
+      });
+      listEl.appendChild(h('button', { class: 'btn ghost', type: 'button', style: 'margin-top:12px', text: '+ Tilføj en træning mere', onclick: function () {
+        rows.push(newRow(rows[rows.length - 1])); draw();
+        var b = document.querySelector('.sheet .body'); if (b) b.scrollTop = b.scrollHeight;
+      } }));
+      drawSum();
+    }
+    function drawSum() {
+      var t = rows.reduce(function (s, r) { return s + r.timer; }, 0);
+      sumEl.textContent = num(t) + ' timer · ' + kr(t * data.profile.rate);
+      save.textContent = rows.length === 1 ? 'Gem træning' : 'Gem ' + rows.length + ' træninger';
+    }
+
+    rows.push(newRow(null));
+    draw();
+
+    var close = openSheet('Registrér træning', h('div', null, listEl, err), h('div', null, sumEl, save));
+    save.addEventListener('click', function () {
+      err.textContent = '';
+      for (var i = 0; i < rows.length; i++) {
+        var r = rows[i], n = rows.length > 1 ? ' (træning ' + (i + 1) + ')' : '';
+        if (!r.dato) { err.textContent = 'Vælg dato' + n + '.'; return; }
+        if (r.dato > data.today) { err.textContent = 'Datoen må ikke være i fremtiden' + n + '.'; return; }
+        if (r.dato < data.minDate) { err.textContent = 'Du kan kun registrere for denne og sidste måned' + n + '.'; return; }
+        if (!String(r.hold).trim()) { err.textContent = 'Vælg hold' + n + '.'; return; }
+        if ((r.other || !isOwn(r.hold)) && !r.kommentar.trim()) { err.textContent = (r.other ? 'Skriv i kommentaren, hvad det var' : 'Skriv i kommentaren, hvem du afløste') + n + '.'; return; }
+        var dup = data.regs.some(function (x) { return x.dato === r.dato && lc(x.hold) === lc(r.hold) && x.timer > 0; }) ||
+          rows.some(function (x, j) { return j !== i && x.dato === r.dato && lc(x.hold) === lc(r.hold); });
+        if (dup && !save._dupOk) {
+          save._dupOk = true;
+          err.textContent = r.hold + ' d. ' + dParts(r.dato).day + '. ' + dParts(r.dato).mon + ' er allerede registreret. Tryk Gem igen, hvis det er rigtigt.';
+          return;
+        }
+      }
+      busy(save, true);
+      var ownRow = rows.filter(function (x) { return !x.other && isOwn(x.hold); }).slice(-1)[0];
+      if (ownRow) store('tgh_hold', ownRow.hold);
+      store('tgh_timer', String(rows[rows.length - 1].timer));
+      call('apiAddRegistrations', token, rows.map(function (r) { return { dato: r.dato, hold: r.hold, timer: r.timer, kommentar: r.kommentar }; }))
+        .then(function (res) {
+          close();
+          ui.period = rows[0].dato.slice(0, 7);
+          setData(res.state);
+          toast(res.added === 1 ? 'Træningen er gemt ✓' : res.added + ' træninger er gemt ✓');
+          if (res.late) setTimeout(function () { toast('Fristen var overskredet – timerne kommer med næste måneds løn.'); }, 3300);
+        })
+        .catch(function (e) { busy(save, false); drawSum(); handle(e, err); });
+    });
+  }
+
+  // ── Ark: historik ─────────────────────────────────────────
+  function openHistory() {
+    var body = h('div', null, h('div', { class: 'empty', text: 'Henter historik…' }));
+    var close = openSheet('Min historik', body, h('button', { class: 'btn ghost', text: 'Luk', onclick: function () { close(); } }));
+    var shown = hist;
+    var seasons = hist && hist.seasons;
+    var archive = {}; // tidligere sæsoner hentes først, når man trykker på dem
+    if (shown) drawHistory(body, shown);
+    call('apiGetHistory', token).then(function (res) {
+      hist = res; saveCache(); seasons = res.seasons;
+      // Tegn igen, hvis det nye svar adskiller sig fra det, der faktisk vises.
+      if (JSON.stringify(res) !== JSON.stringify(shown) && document.body.contains(body) && !body._season) drawHistory(body, res);
+    }).catch(function (e) { if (!shown) { close(); handle(e); } });
+
+    body._pick = function (y) {
+      body._season = y;
+      if (y === null) return drawHistory(body, hist);
+      if (archive[y]) return drawHistory(body, archive[y]);
+      drawHistory(body, { list: [], seasons: seasons, season: y, loading: true });
+      call('apiGetHistory', token, y).then(function (res) {
+        archive[y] = res;
+        if (body._season === y && document.body.contains(body)) drawHistory(body, res);
+      }).catch(function (e) { handle(e); });
+    };
+  }
+
+  function drawHistory(body, res) {
+      body.innerHTML = '';
+      var ss = res.seasons || [];
+      if (ss.length > 1) {
+        add(body, h('div', { class: 'chips', style: 'margin-bottom:8px' }, ss.map(function (z) {
+          var on = (res.season === undefined ? null : res.season) === z.year;
+          return h('button', { class: 'chip' + (on ? ' on' : ''), style: 'text-transform:none;flex:0 0 auto', text: z.label, onclick: function () { if (!on && body._pick) body._pick(z.year); } });
+        })));
+      }
+      if (res.loading) { add(body, h('div', { class: 'card empty', text: 'Henter sæson…' })); return; }
+      if (!res.list.length) { add(body, h('div', { class: 'card empty', text: res.season ? 'Ingen udbetalinger i den sæson.' : 'Ingen udbetalinger endnu i denne sæson.' })); return; }
+      var years = {};
+      res.list.forEach(function (x) { (years[x.year] = years[x.year] || []).push(x); });
+      Object.keys(years).sort().reverse().forEach(function (y) {
+        var tot = years[y].reduce(function (s, x) { return s + x.total; }, 0);
+        add(body, h('div', { class: 'yr' }, h('span', { text: y }), h('span', { text: kr(tot) })));
+        add(body, h('div', { class: 'card list' }, years[y].map(function (x) {
+          var cls = x.status === 'Udbetalt' ? 'badge ok' : (x.status === 'Åben' ? 'badge sky' : 'badge');
+          var extra = [];
+          if (x.korsel || x.udlaeg) extra.push('Kørsel/udlæg ' + kr(x.korsel + x.udlaeg));
+          return h('div', { class: 'item', style: 'flex-wrap:wrap' },
+            h('div', { class: 'what' },
+              h('div', { class: 't', style: 'text-transform:capitalize', text: x.label }),
+              h('div', { class: 's note', style: 'color:var(--muted)', text: num(x.timer) + ' t · løn ' + kr(x.lon) + (extra.length ? ' · ' + extra.join(' · ') : '') }),
+              h('div', { class: 's', text: (x.status === 'Udbetalt' ? 'Udbetalt ' : 'Udbetales ') + x.payout }),
+              h('span', { class: cls, text: x.status }), x.rettet ? h('span', { class: 'badge warn', style: 'margin-left:6px', text: 'Rettet af kasserer' }) : null),
+            h('div', { class: 'amt' }, h('b', { text: kr(x.total) }),
+              x.slipId && Math.abs(x.total - x.brutto) > 0.004 ? h('span', { text: 'før skat ' + kr(x.brutto) }) : null),
+            x.slipId ? h('button', { class: 'btn ghost', style: 'margin-top:10px;padding:10px', text: x.slipRettet ? '📄 Lønseddel (rettet)' : '📄 Lønseddel', onclick: function () { openPayslip(x.slipId); } }) : null);
+        })));
+      });
+      add(body, h('p', { class: 'hint', style: 'text-align:center;margin:16px 0 4px', text: 'Måneder med lønseddel viser det beløb, der er udbetalt. Andre måneder viser beløbet før evt. skat.' }));
+  }
+
+  // ── Lønseddel ─────────────────────────────────────────────
+  function openPayslip(id) {
+    var paper = h('div', { class: 'paper' }, h('div', { class: 'empty', text: 'Henter lønseddel…' }));
+    var dl = h('button', { class: 'btn primary', text: 'Hent som PDF', disabled: true });
+    var close = openSheet('Lønseddel', paper, dl);
+    call('apiGetPayslip', token, id).then(function (r) {
+      paper.innerHTML = r.html; // dannet og escapet på serveren
+      dl.disabled = false;
+      dl.onclick = function () {
+        busy(dl, true);
+        call('apiGetPayslipPdf', token, id).then(function (f) {
+          var bin = atob(f.data), bytes = new Uint8Array(bin.length);
+          for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          var url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+          var a = h('a', { href: url, download: f.name, target: '_blank' });
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+          busy(dl, false, 'Hent som PDF');
+        }).catch(function (e) { busy(dl, false, 'Hent som PDF'); handle(e); });
+      };
+    }).catch(function (e) { close(); handle(e); });
+  }
+
+  // ── Ark: kørsel og udlæg ──────────────────────────────────
+  function openExpForm(p) {
+    var e = { type: 'Kørsel', dato: defaultDate(p), km: '', belob: '', beskrivelse: '' };
+    var file = null;
+    var body = h('div');
+    var err = h('div', { class: 'err' });
+    var save = h('button', { class: 'btn primary', text: 'Gem' });
+
+    function draw() {
+      body.innerHTML = '';
+      var seg = h('div', { class: 'seg' }, ['Kørsel', 'Udlæg'].map(function (t) {
+        return h('button', { type: 'button', class: e.type === t ? 'on' : '', text: t, onclick: function () { e.type = t; draw(); } });
+      }));
+      var date = h('input', { class: 'in-f', type: 'date', value: e.dato, min: data.minDate, max: data.today, oninput: function () { e.dato = date.value; } });
+      var calc = h('div', { class: 'calc' });
+      var content = [seg, h('label', { class: 'f', text: 'Dato' }), date];
+      if (e.type === 'Kørsel') {
+        var km = h('input', { class: 'in-f', type: 'number', inputmode: 'numeric', min: '1', step: '1', placeholder: 'Antal km i alt (tur/retur)', value: e.km,
+          oninput: function () { e.km = km.value; calc.textContent = km.value ? '= ' + kr(Math.round(+km.value) * data.kmRate) + ' (' + num(data.kmRate) + ' kr/km)' : ''; } });
+        content.push(h('label', { class: 'f', text: 'Kilometer' }), km, calc);
+        if (e.km) calc.textContent = '= ' + kr(Math.round(+e.km) * data.kmRate);
+      } else {
+        var bel = h('input', { class: 'in-f', type: 'text', inputmode: 'decimal', placeholder: '0,00', value: e.belob, oninput: function () { e.belob = bel.value; } });
+        var fileIn = h('input', { type: 'file', accept: 'image/*,application/pdf', class: 'hidden', onchange: function () { pick(fileIn.files[0]); } });
+        var fileBox = h('label', { class: 'file' }, fileIn,
+          file && file.preview ? h('img', { src: file.preview, alt: '' }) : h('span', { style: 'font-size:24px', text: '📷' }),
+          h('span', null, file ? h('b', { text: file.name }) : 'Tag billede af kvittering eller vælg fil'));
+        content.push(h('label', { class: 'f', text: 'Beløb (kr)' }), bel, h('label', { class: 'f', text: 'Kvittering' }), fileBox);
+      }
+      var besk = h('input', { class: 'in-f', type: 'text', maxlength: '200', value: e.beskrivelse,
+        placeholder: e.type === 'Kørsel' ? 'Fx konkurrence i Aarhus' : 'Fx musik til opvisning', oninput: function () { e.beskrivelse = besk.value; } });
+      content.push(h('label', { class: 'f', text: e.type === 'Kørsel' ? 'Hvor kørte du hen?' : 'Hvad dækker udlægget?' }), besk, err);
+      add(body, h('div', { class: 'card row-card', style: 'padding-top:14px' }, content));
+    }
+
+    function pick(f) {
+      if (!f) return;
+      err.textContent = '';
+      if (f.type === 'application/pdf') {
+        if (f.size > 8e6) { err.textContent = 'PDF-filen er for stor (max 8 MB).'; return; }
+        var r = new FileReader();
+        r.onload = function () { file = { name: f.name, mime: f.type, data: String(r.result).split(',')[1] }; draw(); };
+        r.readAsDataURL(f);
+        return;
+      }
+      var url = URL.createObjectURL(f);
+      var img = new Image();
+      img.onload = function () {
+        var max = 1600, w = img.naturalWidth, hh = img.naturalHeight, s = Math.min(1, max / Math.max(w, hh));
+        var c = document.createElement('canvas'); c.width = Math.round(w * s); c.height = Math.round(hh * s);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        var du = c.toDataURL('image/jpeg', 0.8);
+        URL.revokeObjectURL(url);
+        file = { name: f.name || 'kvittering.jpg', mime: 'image/jpeg', data: du.split(',')[1], preview: du };
+        draw();
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); err.textContent = 'Billedet kunne ikke læses. Prøv et andet eller tag et skærmbillede.'; };
+      img.src = url;
+    }
+
+    draw();
+    var close = openSheet('Kørsel eller udlæg', body, save);
+    save.addEventListener('click', function () {
+      err.textContent = '';
+      if (!e.dato) { err.textContent = 'Vælg dato.'; return; }
+      if (e.type === 'Kørsel' && !(+e.km >= 1)) { err.textContent = 'Skriv antal km.'; return; }
+      if (e.type === 'Udlæg' && !(+String(e.belob).replace(',', '.') > 0)) { err.textContent = 'Skriv beløbet.'; return; }
+      if (e.type === 'Udlæg' && !file) { err.textContent = 'Vedhæft et billede af kvitteringen.'; return; }
+      if (!e.beskrivelse.trim()) { err.textContent = e.type === 'Kørsel' ? 'Skriv hvor du kørte hen.' : 'Skriv hvad udlægget dækker.'; return; }
+      busy(save, true);
+      call('apiAddExpense', token, { type: e.type, dato: e.dato, km: e.km, belob: e.belob, beskrivelse: e.beskrivelse },
+        e.type === 'Udlæg' && file ? { name: file.name, mime: file.mime, data: file.data } : null)
+        .then(function (st) { close(); ui.period = e.dato.slice(0, 7); setData(st); toast('Gemt ✓'); })
+        .catch(function (x) { busy(save, false, 'Gem'); handle(x, err); });
+    });
+  }
+
+  // ── Start ─────────────────────────────────────────────────
+  // Appen må kun vises direkte eller inde i foreningens egen startside.
+  function framedByStranger() {
+    var ao = window.location.ancestorOrigins;
+    if (!ao || !ao.length) return false;
+    for (var i = 0; i < ao.length; i++) {
+      var o = ao[i];
+      if (o === 'https://script.google.com' || /\.googleusercontent\.com$/.test(o)) continue;
+      if (cfg.appOrigin && o === cfg.appOrigin) continue;
+      return true;
+    }
+    return false;
+  }
+
+  function showGuard() {
+    mount(h('div', { class: 'login' }, h('div', { class: 'wrap', style: 'padding-top:60px' }, h('div', { class: 'card', style: 'padding:20px' },
+      h('h2', { style: 'margin-top:0', text: 'Åbn Trænertimer det rigtige sted' }),
+      h('p', { text: 'Denne side viser Trænertimer inde i en anden hjemmeside. Skriv aldrig din kode her. Brug linket fra kassereren.' })))));
+  }
+
+  token = load(TOKEN_KEY);
+  var cached = token ? readCache() : null;
+  if (cached && cached.state && cached.cfg) {
+    cfg = cached.cfg;
+    if (framedByStranger()) { showGuard(); return; }
+    hist = cached.history || null;
+    setData(cached.state, 'cache');   // vis med det samme – opdateres når serveren svarer
+  }
+  call('apiBoot', token || null).then(function (res) {
+    cfg = res.config || cfg;
+    if (framedByStranger()) { showGuard(); return; }
+    if (!token) { showLogin(); return; }
+    if (res.authError) { handle(new Error(res.authError)); return; }
+    hist = res.history || null;
+    setData(res.state, 'boot');
+  }).catch(function (e) {
+    if (data) toast('Ingen forbindelse – viser det senest hentede.', true);
+    else { mount(h('div', { class: 'loading' }, h('div', { style: 'text-align:center;padding:24px' }, h('p', { text: e.message }), h('button', { class: 'btn primary', style: 'width:auto', text: 'Prøv igen', onclick: function () { location.reload(); } })))); }
+  });
+})();
+</script>
+</body>
+</html>
