@@ -877,6 +877,7 @@
               h('div', { class: 's note', style: 'color:var(--muted)', text: num(x.timer) + ' t · løn ' + kr(x.lon) + (extra.length ? ' · ' + extra.join(' · ') : '') }),
               x.late && x.late.length ? h('div', { class: 's note', text: 'Heraf ' + x.late.map(function (l) { return num(l.timer) + ' t fra ' + l.month; }).join(' og ') + ' (indsendt efter fristen)' }) : null,
               h('div', { class: 's', text: (x.status === 'Udbetalt' ? 'Udbetalt ' : 'Udbetales ') + x.payout }),
+              x.ferie > 0 ? h('div', { class: 's', text: 'Feriepenge ' + kr(x.ferie) + ' til FerieKonto' }) : null,
               h('span', { class: cls, text: x.status }), x.rettet ? h('span', { class: 'badge warn', style: 'margin-left:6px', text: 'Rettet af kasserer' }) : null),
             h('div', { class: 'amt' }, h('b', { text: kr(x.total) }),
               x.slipId && Math.abs(x.total - x.brutto) > 0.004 ? h('span', { text: 'før skat ' + kr(x.brutto) }) : null),
