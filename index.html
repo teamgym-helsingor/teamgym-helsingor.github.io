@@ -890,22 +890,32 @@
   // ── Lønseddel ─────────────────────────────────────────────
   function openPayslip(id) {
     var paper = h('div', { class: 'paper' }, h('div', { class: 'empty', text: 'Henter lønseddel…' }));
-    var dl = h('button', { class: 'btn primary', text: 'Hent som PDF', disabled: true });
+    var dl = h('button', { class: 'btn primary', text: 'Gør PDF klar…', disabled: true });
     var close = openSheet('Lønseddel', paper, dl);
+    var file = null;
     call('apiGetPayslip', token, id).then(function (r) {
       paper.innerHTML = r.html; // dannet og escapet på serveren
-      dl.disabled = false;
+      // PDF'en laves i baggrunden, mens man kigger – så er den klar, når man trykker.
+      callQuiet('apiGetPayslipPdf', token, id).then(function (f) {
+        var bin = atob(f.data), bytes = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        file = { name: f.name, blob: new Blob([bytes], { type: 'application/pdf' }) };
+        dl.disabled = false; dl.textContent = 'Gem eller del som PDF';
+      }).catch(function () { dl.disabled = false; dl.textContent = 'Prøv igen at lave PDF'; dl.onclick = function () { close(); openPayslip(id); }; });
       dl.onclick = function () {
-        busy(dl, true);
-        call('apiGetPayslipPdf', token, id).then(function (f) {
-          var bin = atob(f.data), bytes = new Uint8Array(bin.length);
-          for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-          var url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
-          var a = h('a', { href: url, download: f.name, target: '_blank' });
-          document.body.appendChild(a); a.click(); a.remove();
-          setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
-          busy(dl, false, 'Hent som PDF');
-        }).catch(function (e) { busy(dl, false, 'Hent som PDF'); handle(e); });
+        if (!file) return;
+        // iPhone: brug delearket (Arkiver, Udskriv, Mail …). Ellers almindelig download.
+        try {
+          var f = new File([file.blob], file.name, { type: 'application/pdf' });
+          if (navigator.canShare && navigator.canShare({ files: [f] })) {
+            navigator.share({ files: [f], title: file.name }).catch(function () {});
+            return;
+          }
+        } catch (e) { /* falder tilbage til download */ }
+        var url = URL.createObjectURL(file.blob);
+        var a = h('a', { href: url, download: file.name });
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
       };
     }).catch(function (e) { close(); handle(e); });
   }
