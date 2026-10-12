@@ -75,6 +75,16 @@
   .month { font-size: 14px; color: var(--muted); text-transform: capitalize; display: flex; justify-content: space-between; align-items: center; }
   .histbtn { border: 0; background: none; color: var(--link); font-weight: 700; font-size: 14px; cursor: pointer; padding: 4px 0; text-transform: none; }
   .note { color: var(--link); font-size: 13px; white-space: normal !important; }
+  .histbtns { display: flex; gap: 8px; width: 100%; margin-top: 10px; }
+  .histbtns .btn { padding: 10px; font-size: 14px; }
+  .monthbox { width: 100%; margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 6px; }
+  .mrow { display: flex; gap: 10px; align-items: baseline; padding: 6px 0; font-size: 14px; }
+  .mrow + .mrow { border-top: 1px solid var(--line); }
+  .mrow .md { flex: 0 0 58px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .mrow .mw { flex: 1; min-width: 0; }
+  .mrow .mw small { color: var(--muted); }
+  .mrow .mt { flex: 0 0 44px; text-align: right; font-variant-numeric: tabular-nums; }
+  .mrow .ma { flex: 0 0 86px; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
   .yr { display: flex; justify-content: space-between; font-weight: 800; font-size: 15px; padding: 18px 4px 8px; }
   .badge.ok { background: #dcfce7; color: #166534; }
   .badge.sky { background: #e0f2fe; color: #075985; }
@@ -306,7 +316,7 @@
   var READS = [0, 4000, 8000, 14000];
   var WRITE_PLAN = [0, 6500, 13000, 21000];
   var WRITES = { apiAddRegistrations: 1, apiAddExpense: 1, apiDeleteRegistration: 1, apiDeleteExpense: 1, apiNoHours: 1, apiChangePassword: 1 };
-  var HEDGE = { apiBoot: READS, apiConfig: READS, apiGetState: READS, apiGetHistory: READS, apiGetPayslip: READS, apiGetPayslipPdf: READS,
+  var HEDGE = { apiBoot: READS, apiConfig: READS, apiGetState: READS, apiGetHistory: READS, apiGetMonth: READS, apiGetPayslip: READS, apiGetPayslipPdf: READS,
     apiLogin: [0, 5500, 11000, 18000], // en ekstra kopi giver højst en ekstra session
     apiAddRegistrations: WRITE_PLAN, apiAddExpense: [0, 15000, 30000], apiDeleteRegistration: WRITE_PLAN, apiDeleteExpense: WRITE_PLAN,
     apiNoHours: WRITE_PLAN, apiChangePassword: WRITE_PLAN, apiLogout: [0] };
@@ -877,31 +887,73 @@
               h('div', { class: 's note', style: 'color:var(--muted)', text: num(x.timer) + ' t · løn ' + kr(x.lon) + (extra.length ? ' · ' + extra.join(' · ') : '') }),
               x.late && x.late.length ? h('div', { class: 's note', text: 'Heraf ' + x.late.map(function (l) { return num(l.timer) + ' t fra ' + l.month; }).join(' og ') + ' (indsendt efter fristen)' }) : null,
               h('div', { class: 's', text: (x.status === 'Udbetalt' ? 'Udbetalt ' : 'Udbetales ') + x.payout }),
-              x.ferie > 0 ? h('div', { class: 's', text: 'Feriepenge ' + kr(x.ferie) + ' til FerieKonto' }) : null,
+              x.ferie > 0 ? h('div', { class: 's', style: 'white-space:normal', text: 'Feriepenge ' + kr(x.ferie) + ' til FerieKonto' }) : null,
               h('span', { class: cls, text: x.status }), x.rettet ? h('span', { class: 'badge warn', style: 'margin-left:6px', text: 'Rettet af kasserer' }) : null),
             h('div', { class: 'amt' }, h('b', { text: kr(x.total) }),
               x.slipId && Math.abs(x.total - x.brutto) > 0.004 ? h('span', { text: 'før skat ' + kr(x.brutto) }) : null),
-            x.slipId ? h('button', { class: 'btn ghost', style: 'margin-top:10px;padding:10px', text: x.slipRettet ? '📄 Lønseddel (rettet)' : '📄 Lønseddel', onclick: function () { openPayslip(x.slipId); } }) : null);
+            h('div', { class: 'histbtns' },
+              h('button', { class: 'btn ghost', type: 'button', text: 'Vis træninger ▾', onclick: function (ev) { toggleMonth(ev.currentTarget, x.key); } }),
+              x.slipId ? h('button', { class: 'btn ghost', text: x.slipRettet ? '📄 Lønseddel (rettet)' : '📄 Lønseddel', onclick: function () { openPayslip(x.slipId, x.slipHtml); } }) : null));
         })));
       });
       add(body, h('p', { class: 'hint', style: 'text-align:center;margin:16px 0 4px', text: 'Måneder med lønseddel viser det beløb, der er udbetalt. Andre måneder viser beløbet før evt. skat.' }));
   }
 
+  // Træningerne i en måned hentes først, når man folder den ud, og huskes derefter.
+  var monthCache = {};
+  function toggleMonth(btn, key) {
+    var item = btn.closest('.item');
+    var box = item.querySelector('.monthbox');
+    if (box) { box.remove(); btn.textContent = 'Vis træninger ▾'; return; }
+    box = h('div', { class: 'monthbox' });
+    item.appendChild(box);
+    btn.textContent = 'Skjul træninger ▴';
+    function draw(m) {
+      box.innerHTML = '';
+      if (!m.regs.length && !m.exps.length) { add(box, h('div', { class: 's', text: 'Ingen registreringer.' })); return; }
+      m.regs.forEach(function (r) {
+        var d = dParts(r.dato);
+        add(box, h('div', { class: 'mrow' },
+          h('span', { class: 'md', text: r.timer > 0 ? d.day + '. ' + d.mon : '–' }),
+          h('span', { class: 'mw' }, r.timer > 0 ? r.hold : 'Ingen timer i måneden',
+            r.work !== m.key && r.timer > 0 ? h('small', { text: ' (fra ' + monthName(r.work) + ')' }) : null,
+            r.kommentar && r.timer > 0 ? h('small', { text: ' · ' + r.kommentar }) : null,
+            r.note ? h('small', { class: 'note', text: ' 💬 ' + r.note }) : null),
+          h('span', { class: 'mt', text: r.timer > 0 ? num(r.timer) + ' t' : '' }),
+          h('span', { class: 'ma', text: kr(r.belob) })));
+      });
+      m.exps.forEach(function (x) {
+        var d = dParts(x.dato);
+        add(box, h('div', { class: 'mrow' },
+          h('span', { class: 'md', text: d.day + '. ' + d.mon }),
+          h('span', { class: 'mw' }, x.type === 'Kørsel' ? 'Kørsel · ' + x.km + ' km' : 'Udlæg', x.beskrivelse ? h('small', { text: ' · ' + x.beskrivelse }) : null),
+          h('span', { class: 'mt', text: '' }),
+          h('span', { class: 'ma', text: kr(x.belob) })));
+      });
+    }
+    if (monthCache[key]) return draw(monthCache[key]);
+    add(box, h('div', { class: 's', text: 'Henter…' }));
+    callQuiet('apiGetMonth', token, key).then(function (m) { monthCache[key] = m; if (document.body.contains(box)) draw(m); })
+      .catch(function (e) { box.innerHTML = ''; add(box, h('div', { class: 's', style: 'color:var(--bad)', text: cleanErr(e && e.message) })); });
+  }
+
   // ── Lønseddel ─────────────────────────────────────────────
-  function openPayslip(id) {
+  function openPayslip(id, cachedHtml) {
     var paper = h('div', { class: 'paper' }, h('div', { class: 'empty', text: 'Henter lønseddel…' }));
     var dl = h('button', { class: 'btn primary', text: 'Gør PDF klar…', disabled: true });
     var close = openSheet('Lønseddel', paper, dl);
     var file = null;
-    call('apiGetPayslip', token, id).then(function (r) {
-      paper.innerHTML = r.html; // dannet og escapet på serveren
+    // Lønsedlen ligger allerede i historikken – vis den med det samme.
+    var shown = cachedHtml ? Promise.resolve({ html: cachedHtml }) : call('apiGetPayslip', token, id);
+    shown.then(function (r) {
+      paper.innerHTML = String(r.html).replace(/__LOGO__/g, LOGO || ''); // dannet og escapet på serveren
       // PDF'en laves i baggrunden, mens man kigger – så er den klar, når man trykker.
       callQuiet('apiGetPayslipPdf', token, id).then(function (f) {
         var bin = atob(f.data), bytes = new Uint8Array(bin.length);
         for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
         file = { name: f.name, blob: new Blob([bytes], { type: 'application/pdf' }) };
         dl.disabled = false; dl.textContent = 'Gem eller del som PDF';
-      }).catch(function () { dl.disabled = false; dl.textContent = 'Prøv igen at lave PDF'; dl.onclick = function () { close(); openPayslip(id); }; });
+      }).catch(function () { dl.disabled = false; dl.textContent = 'Prøv igen at lave PDF'; dl.onclick = function () { close(); openPayslip(id, cachedHtml); }; });
       dl.onclick = function () {
         if (!file) return;
         // iPhone: brug delearket (Arkiver, Udskriv, Mail …). Ellers almindelig download.
