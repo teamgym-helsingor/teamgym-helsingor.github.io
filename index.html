@@ -504,8 +504,10 @@
 
   var prefetchTimer;
   /** mode: 'cache' (fra telefonen), 'boot' (med historik), ellers efter en ændring. */
+  var lastSync = 0;
   function setData(st, mode) {
     data = st;
+    if (mode !== 'cache') lastSync = Date.now();
     if (mode !== 'cache') {
       if (mode !== 'boot') {
         // Noget er ændret – hent historikken i baggrunden, så den er klar.
@@ -656,6 +658,23 @@
         x.editable ? delBtn(function () { return call('apiDeleteExpense', token, x.id).then(function (st) { setData(st); toast('Slettet'); }); }) : null);
     }));
   }
+
+  // Når appen hentes frem igen fra baggrunden (iPhone lukker den ikke), hentes friske tal i
+  // stilhed – så rettelser fra kassereren dukker op, uden at man skal logge ud og ind.
+  var resyncing = false;
+  function resync() {
+    if (!token || !data || resyncing || document.visibilityState !== 'visible') return;
+    if (Date.now() - lastSync < 30000) return;
+    resyncing = true;
+    callQuiet('apiGetState', token).then(function (st) {
+      resyncing = false;
+      setData(st); // åbne ark (formular, historik) ligger ovenpå og bliver ikke rørt
+    }, function (e) { resyncing = false; if (cleanErr(e && e.message) === 'AUTH') handle(e); });
+    flushPending();
+  }
+  document.addEventListener('visibilitychange', resync);
+  window.addEventListener('pageshow', function (ev) { if (ev.persisted) resync(); });
+  window.addEventListener('focus', resync);
 
   // ── Kø: træninger gemmes med det samme på telefonen og sendes i baggrunden ──
   var PENDING_KEY = 'tgh_traenertimer_pending';
