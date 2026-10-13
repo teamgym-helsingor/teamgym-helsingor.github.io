@@ -236,6 +236,17 @@
     .login .card { max-width: 440px; margin-left: auto; margin-right: auto; }
   }
 
+  .btnrow .btn.share { flex: 0 0 auto; padding-left: 16px; padding-right: 16px; }
+  /* Udskrift: kun lønsedlen */
+  @media print {
+    body.printing > *:not(.print-target) { display: none !important; }
+    body.printing { background: #fff !important; }
+    body.printing .print-target { position: static !important; background: none !important; padding: 0 !important; display: block !important; }
+    body.printing .print-target .sheet { max-height: none !important; box-shadow: none !important; background: #fff !important; max-width: none !important; animation: none !important; border-radius: 0 !important; }
+    body.printing .print-target header, body.printing .print-target footer { display: none !important; }
+    body.printing .print-target .body { overflow: visible !important; padding: 0 !important; }
+    body.printing .paper { padding: 0 !important; margin: 0 !important; border-radius: 0 !important; }
+  }
   .toast { position: fixed; left: 50%; top: calc(14px + env(safe-area-inset-top)); transform: translateX(-50%); background: #0b1f33; color: #fff; padding: 12px 16px; border-radius: 12px; font-size: 15px; z-index: 50; max-width: calc(100% - 32px); box-shadow: 0 8px 30px rgba(0,0,0,.25); text-align: center; }
   .toast.bad { background: var(--bad); }
   .spin { width: 18px; height: 18px; border: 2.5px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: sp .7s linear infinite; }
@@ -1022,35 +1033,47 @@
   // ── Lønseddel ─────────────────────────────────────────────
   function openPayslip(id, cachedHtml) {
     var paper = h('div', { class: 'paper' }, h('div', { class: 'empty', text: 'Henter lønseddel…' }));
-    var dl = h('button', { class: 'btn primary', text: 'Gør PDF klar…', disabled: true });
-    var close = openSheet('Lønseddel', paper, dl, true);
     var file = null;
+    // Telefon: åbn PDF'en i telefonens egen PDF-visning (derfra kan man gemme i Filer, udskrive og dele).
+    // PC: hent filen og/eller udskriv.
+    var phone = false;
+    try { phone = window.matchMedia('(pointer: coarse)').matches && window.matchMedia('(max-width: 899px)').matches; } catch (e) {}
+    var dl = h('button', { class: 'btn primary', text: 'Gør PDF klar…', disabled: true });
+    var pr = phone ? null : h('button', { class: 'btn ghost', text: '🖨 Udskriv', disabled: true });
+    var close = openSheet('Lønseddel', paper, phone ? dl : h('div', { class: 'btnrow' }, pr, dl), true);
+    var bg = paper.closest('.sheet-bg'); if (bg) bg.classList.add('print-target');
+    var readyText = phone ? 'Åbn PDF' : '⬇ Hent PDF';
+
+    // Udskriv (PC): browserens egen udskrift af lønsedlen.
+    if (pr) pr.onclick = function () {
+      document.body.classList.add('printing');
+      setTimeout(function () { window.print(); setTimeout(function () { document.body.classList.remove('printing'); }, 500); }, 50);
+    };
+    dl.onclick = function () {
+      if (!file) return;
+      var url = URL.createObjectURL(file.blob);
+      if (phone) {
+        var w = window.open(url, '_blank');
+        if (!w) location.href = url; // hvis pop-up blev blokeret
+      } else {
+        var a = h('a', { href: url, download: file.name });
+        document.body.appendChild(a); a.click(); a.remove();
+      }
+      setTimeout(function () { URL.revokeObjectURL(url); }, 120000);
+    };
+
     // Lønsedlen ligger allerede i historikken – vis den med det samme.
     var shown = cachedHtml ? Promise.resolve({ html: cachedHtml }) : call('apiGetPayslip', token, id);
     shown.then(function (r) {
       paper.innerHTML = String(r.html).replace(/__LOGO__/g, LOGO || ''); // dannet og escapet på serveren
+      if (pr) pr.disabled = false;
       // PDF'en laves i baggrunden, mens man kigger – så er den klar, når man trykker.
       callQuiet('apiGetPayslipPdf', token, id).then(function (f) {
         var bin = atob(f.data), bytes = new Uint8Array(bin.length);
         for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
         file = { name: f.name, blob: new Blob([bytes], { type: 'application/pdf' }) };
-        dl.disabled = false; dl.textContent = 'Gem eller del som PDF';
-      }).catch(function () { dl.disabled = false; dl.textContent = 'Prøv igen at lave PDF'; dl.onclick = function () { close(); openPayslip(id, cachedHtml); }; });
-      dl.onclick = function () {
-        if (!file) return;
-        // iPhone: brug delearket (Arkiver, Udskriv, Mail …). Ellers almindelig download.
-        try {
-          var f = new File([file.blob], file.name, { type: 'application/pdf' });
-          if (navigator.canShare && navigator.canShare({ files: [f] })) {
-            navigator.share({ files: [f], title: file.name }).catch(function () {});
-            return;
-          }
-        } catch (e) { /* falder tilbage til download */ }
-        var url = URL.createObjectURL(file.blob);
-        var a = h('a', { href: url, download: file.name });
-        document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
-      };
+        dl.disabled = false; dl.textContent = readyText;
+      }).catch(function () { dl.disabled = false; dl.textContent = 'Prøv igen'; dl.onclick = function () { close(); openPayslip(id, cachedHtml); }; });
     }).catch(function (e) { close(); handle(e); });
   }
 
