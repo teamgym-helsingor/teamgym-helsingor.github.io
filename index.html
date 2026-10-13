@@ -187,6 +187,55 @@
   .paper { background: #fff; color: #0b1f33; border-radius: 14px; padding: 18px 14px; margin-top: 6px; overflow-x: auto; color-scheme: light; }
   .paper table { font-size: 13px; }
 
+  /* Kun til store skærme (skjult på mobil) */
+  .dnav, .dactions, .lhead { display: none; }
+
+  /* ── PC / store skærme ── */
+  @media (min-width: 900px) {
+    .main .top { padding: 18px 32px 18px; }
+    .main .top .in { max-width: 1120px; align-items: center; }
+    .main .iconbtn, .main .menu { display: none !important; }
+    .dnav { display: flex; gap: 4px; }
+    .dnav button { background: rgba(255,255,255,.1); border: 0; color: #fff; padding: 9px 16px; border-radius: 10px; font-weight: 600; font-size: 14px; cursor: pointer; }
+    .dnav button:hover { background: rgba(255,255,255,.2); }
+    .main .wrap { max-width: 1120px; padding: 28px 32px 48px; display: grid; grid-template-columns: 360px 1fr; gap: 28px; align-items: start; }
+    .colL { position: sticky; top: 24px; }
+    .main .summary { margin-top: 0; padding: 20px; }
+    .main .big .h { font-size: 40px; }
+    .dactions { display: grid; gap: 10px; margin-top: 14px; }
+    .main .fab { display: none; }
+    .main .tabs { margin-top: 0; max-width: 420px; }
+    .lhead { display: flex; gap: 12px; padding: 4px 22px 8px; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .lhead .c1 { width: 120px; } .lhead .c2 { flex: 1; } .lhead .c3 { width: 200px; text-align: right; } .lhead .c4 { width: 36px; }
+    .main .list .item { padding: 12px 22px; }
+    .main .list .item:hover { background: rgba(0,159,226,.05); }
+    .main .list .date { width: 120px; text-align: left; display: flex; align-items: baseline; gap: 8px; }
+    .main .list .date b { display: inline; font-size: 17px; }
+    .main .list .date span { font-size: 13px; }
+    .main .list .amt { width: 200px; display: flex; justify-content: flex-end; align-items: baseline; gap: 18px; }
+    .main .list .amt b { display: inline; }
+    .main .list .amt span { font-size: 14px; min-width: 90px; text-align: right; }
+    .main .foot { text-align: left; padding-left: 4px; }
+    .logoutlink { display: none; }
+
+    /* Ark bliver til vinduer midt på skærmen */
+    .sheet-bg { align-items: center; padding: 32px; }
+    .sheet { border-radius: 20px; max-height: calc(100vh - 64px); max-width: 600px; box-shadow: 0 24px 80px rgba(0,0,0,.35); animation: pop .16s ease-out; }
+    .sheet.wide { max-width: 820px; }
+    .sheet footer { border-radius: 0 0 20px 20px; padding-bottom: 14px; }
+    .sheet footer .btn { max-width: 360px; margin-left: auto; display: flex; }
+    .sheet footer .btnrow { max-width: 420px; margin-left: auto; }
+    .sheet footer .sum { text-align: right; max-width: 420px; margin-left: auto; }
+    .sheet footer .btnrow .btn { max-width: none; }
+    @keyframes pop { from { transform: scale(.97); opacity: .4; } to { transform: none; opacity: 1; } }
+    .paper { padding: 28px 32px; }
+    .paper table { font-size: 14px; }
+    .histbtns .btn { max-width: 220px; }
+
+    /* Login */
+    .login .card { max-width: 440px; margin-left: auto; margin-right: auto; }
+  }
+
   .toast { position: fixed; left: 50%; top: calc(14px + env(safe-area-inset-top)); transform: translateX(-50%); background: #0b1f33; color: #fff; padding: 12px 16px; border-radius: 12px; font-size: 15px; z-index: 50; max-width: calc(100% - 32px); box-shadow: 0 8px 30px rgba(0,0,0,.25); text-align: center; }
   .toast.bad { background: var(--bad); }
   .spin { width: 18px; height: 18px; border: 2.5px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: sp .7s linear infinite; }
@@ -565,13 +614,27 @@
     var fab = h('div', { class: 'fab' }, h('button', { class: 'btn primary', text: ui.tab === 'timer' ? '+ Registrér træning' : '+ Tilføj kørsel eller udlæg',
       onclick: function () { if (ui.tab === 'timer') openRegForm(p); else openExpForm(p); } }));
 
-    mount(h('div', null,
+    // Kun på store skærme: menupunkter direkte i toppen og knapper i venstre kolonne.
+    var dnav = h('nav', { class: 'dnav' },
+      h('button', { text: 'Historik', onclick: openHistory }),
+      h('button', { text: 'Skift kode', onclick: function () { showChangePw(false); } }),
+      h('button', { text: 'Log ud', onclick: logout }));
+    var dactions = h('div', { class: 'dactions' },
+      h('button', { class: 'btn primary', text: '+ Registrér træning', onclick: function () { ui.tab = 'timer'; render(); openRegForm(p); } }),
+      h('button', { class: 'btn ghost', text: '+ Kørsel eller udlæg', onclick: function () { ui.tab = 'udlaeg'; render(); openExpForm(p); } }));
+    var listHead = ui.tab === 'timer' && regs.length
+      ? h('div', { class: 'lhead' }, h('span', { class: 'c1', text: 'Dato' }), h('span', { class: 'c2', text: 'Hold' }), h('span', { class: 'c3', text: 'Timer · beløb' }), h('span', { class: 'c4' }))
+      : null;
+
+    mount(h('div', { class: 'main' },
       h('div', { class: 'top', style: 'position:relative' }, h('div', { class: 'in' },
         h('div', { class: 'brandrow' }, logo(), h('div', null, h('div', { class: 'club', text: data.forening }), h('div', { class: 'hello', text: 'Hej ' + first(data.profile.navn) }))),
-        menuBtn), menu),
-      h('div', { class: 'wrap' }, summary, tabs, list,
-        h('div', { class: 'foot' }, 'Timeløn ' + kr(data.profile.rate) + ' · ' + (data.profile.hold.join(', ') || 'ingen hold'),
-          h('br'), h('button', { class: 'histbtn', style: 'margin-top:6px', text: 'Log ud', onclick: logout }))),
+        menuBtn, dnav), menu),
+      h('div', { class: 'wrap' },
+        h('div', { class: 'colL' }, summary, dactions),
+        h('div', { class: 'colR' }, tabs, listHead, list,
+          h('div', { class: 'foot' }, 'Timeløn ' + kr(data.profile.rate) + ' · ' + (data.profile.hold.join(', ') || 'ingen hold'),
+            h('br'), h('button', { class: 'histbtn logoutlink', style: 'margin-top:6px', text: 'Log ud', onclick: logout })))),
       fab));
   }
 
@@ -726,11 +789,11 @@
   });
 
   // ── Ark: registrér træninger ──────────────────────────────
-  function openSheet(title, body, footer) {
+  function openSheet(title, body, footer, wide) {
     var t0 = document.querySelector('.toast'); if (t0) t0.remove();
     var bg = h('div', { class: 'sheet-bg', onclick: function (ev) { if (ev.target === bg) close(); } });
     function close() { bg.remove(); document.body.style.overflow = ''; }
-    bg.appendChild(h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true' },
+    bg.appendChild(h('div', { class: 'sheet' + (wide ? ' wide' : ''), role: 'dialog', 'aria-modal': 'true' },
       h('header', null, h('h2', { text: title }), h('button', { class: 'x', 'aria-label': 'Luk', text: '✕', onclick: close })),
       h('div', { class: 'body' }, body), h('footer', null, footer)));
     document.body.appendChild(bg);
@@ -857,7 +920,7 @@
   // ── Ark: historik ─────────────────────────────────────────
   function openHistory() {
     var body = h('div', null, h('div', { class: 'empty', text: 'Henter historik…' }));
-    var close = openSheet('Min historik', body, h('button', { class: 'btn ghost', text: 'Luk', onclick: function () { close(); } }));
+    var close = openSheet('Min historik', body, h('button', { class: 'btn ghost', text: 'Luk', onclick: function () { close(); } }), true);
     var shown = hist;
     var seasons = hist && hist.seasons;
     var archive = {}; // tidligere sæsoner hentes først, når man trykker på dem
@@ -960,7 +1023,7 @@
   function openPayslip(id, cachedHtml) {
     var paper = h('div', { class: 'paper' }, h('div', { class: 'empty', text: 'Henter lønseddel…' }));
     var dl = h('button', { class: 'btn primary', text: 'Gør PDF klar…', disabled: true });
-    var close = openSheet('Lønseddel', paper, dl);
+    var close = openSheet('Lønseddel', paper, dl, true);
     var file = null;
     // Lønsedlen ligger allerede i historikken – vis den med det samme.
     var shown = cachedHtml ? Promise.resolve({ html: cachedHtml }) : call('apiGetPayslip', token, id);
