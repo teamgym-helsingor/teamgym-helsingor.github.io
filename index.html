@@ -157,6 +157,21 @@
   .sheet header { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 8px; }
   .sheet header h2 { margin: 0; font-size: 20px; }
   .sheet .x { border: 0; background: var(--chip); width: 36px; height: 36px; border-radius: 50%; font-size: 18px; cursor: pointer; }
+  .pf-rate { background: var(--chip); border-radius: 14px; padding: 14px 16px; margin: 4px 0 14px; }
+  .pf-rate .l { font-size: 13px; color: var(--muted); }
+  .pf-rate .v { font-size: 30px; font-weight: 800; color: var(--link); }
+  .pf-rate .s { font-size: 14px; margin-top: 2px; }
+  .pf-list { display: grid; }
+  .pf-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 2px; border-bottom: 1px solid var(--line); font-size: 15px; }
+  .pf-row span { color: var(--muted); }
+  .pf-row b { text-align: right; font-weight: 600; overflow-wrap: anywhere; }
+  .pf-h { font-size: 15px; margin: 18px 0 4px; }
+  .pf-ytd { padding: 6px 2px 4px; }
+  .pf-ytd .v b { font-size: 20px; } .pf-ytd .v span { color: var(--muted); }
+  .pf-ytd .bar { height: 8px; background: var(--chip); border-radius: 6px; margin: 8px 0 4px; overflow: hidden; }
+  .pf-ytd .bar i { display: block; height: 100%; background: var(--sky); border-radius: 6px; }
+  .pf-ytd .bar.near i { background: var(--warn); } .pf-ytd .bar.over i { background: var(--bad); }
+  .pf-ytd .s { font-size: 13px; color: var(--muted); margin-top: 4px; } .pf-ytd .s.warn { color: var(--bad); font-weight: 600; }
   .sheet .body { overflow-y: auto; padding: 0 16px 12px; -webkit-overflow-scrolling: touch; }
   .sheet footer { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--card); }
   .sheet footer .sum { font-size: 14px; color: var(--muted); text-align: center; margin-bottom: 8px; }
@@ -376,7 +391,7 @@
   var READS = [0, 4000, 8000, 14000];
   var WRITE_PLAN = [0, 6500, 13000, 21000];
   var WRITES = { apiAddRegistrations: 1, apiAddExpense: 1, apiDeleteRegistration: 1, apiDeleteExpense: 1, apiNoHours: 1, apiChangePassword: 1 };
-  var HEDGE = { apiBoot: READS, apiConfig: READS, apiGetState: READS, apiGetHistory: READS, apiGetMonth: READS, apiGetPayslip: READS, apiGetPayslipPdf: READS,
+  var HEDGE = { apiBoot: READS, apiConfig: READS, apiGetState: READS, apiGetHistory: READS, apiGetMonth: READS, apiGetProfile: READS, apiGetPayslip: READS, apiGetPayslipPdf: READS,
     apiLogin: [0, 5500, 11000, 18000], // en ekstra kopi giver højst en ekstra session
     apiAddRegistrations: WRITE_PLAN, apiAddExpense: [0, 15000, 30000], apiDeleteRegistration: WRITE_PLAN, apiDeleteExpense: WRITE_PLAN,
     apiNoHours: WRITE_PLAN, apiChangePassword: WRITE_PLAN, apiLogout: [0] };
@@ -596,6 +611,7 @@
     var payoutPassed = data.today >= p.payoutDate;
 
     var menu = h('div', { class: 'menu hidden' },
+      h('button', { text: 'Min profil', onclick: openProfile }),
       h('button', { text: 'Min historik', onclick: openHistory }),
       h('button', { text: 'Skift kode', onclick: function () { showChangePw(false); } }),
       h('button', { text: 'Log ud', onclick: logout }));
@@ -627,6 +643,7 @@
 
     // Kun på store skærme: menupunkter direkte i toppen og knapper i venstre kolonne.
     var dnav = h('nav', { class: 'dnav' },
+      h('button', { text: 'Min profil', onclick: openProfile }),
       h('button', { text: 'Historik', onclick: openHistory }),
       h('button', { text: 'Skift kode', onclick: function () { showChangePw(false); } }),
       h('button', { text: 'Log ud', onclick: logout }));
@@ -644,7 +661,7 @@
       h('div', { class: 'wrap' },
         h('div', { class: 'colL' }, summary, dactions),
         h('div', { class: 'colR' }, tabs, listHead, list,
-          h('div', { class: 'foot' }, 'Timeløn ' + kr(data.profile.rate) + ' · ' + (data.profile.hold.join(', ') || 'ingen hold'),
+          h('div', { class: 'foot' }, h('button', { class: 'histbtn', style: 'font-size:inherit', text: 'Timeløn ' + kr(data.profile.rate) + ' · ' + (data.profile.hold.join(', ') || 'ingen hold') + ' ›', onclick: openProfile }),
             h('br'), h('button', { class: 'histbtn logoutlink', style: 'margin-top:6px', text: 'Log ud', onclick: logout })))),
       fab));
   }
@@ -765,7 +782,7 @@
       x.rows.forEach(function (r) {
         out.push({ id: 'p:' + x.id, pid: x.id, pending: true, failed: x.status === 'failed', error: x.error || '',
           dato: r.dato, hold: r.hold, timer: r.timer, kommentar: r.kommentar, work: r.dato.slice(0, 7), pay: r.dato.slice(0, 7),
-          belob: Math.round(r.timer * data.profile.rate * 100) / 100, editable: false, note: '' });
+          belob: Math.round(r.timer * rateOn(r.dato) * 100) / 100, editable: false, note: '' });
       });
     });
     return out;
@@ -887,7 +904,8 @@
     }
     function drawSum() {
       var t = rows.reduce(function (s, r) { return s + r.timer; }, 0);
-      sumEl.textContent = num(t) + ' timer · ' + kr(t * data.profile.rate);
+      var k = rows.reduce(function (s, r) { return s + r.timer * rateOn(r.dato); }, 0);
+      sumEl.textContent = num(t) + ' timer · ' + kr(k);
       save.textContent = rows.length === 1 ? 'Gem træning' : 'Gem ' + rows.length + ' træninger';
     }
 
@@ -929,6 +947,50 @@
   }
 
   // ── Ark: historik ─────────────────────────────────────────
+  // Timeløn på en bestemt dato (satsen kan skifte på fødselsdagen eller ved sæsonstart).
+  function rateOn(d) {
+    var rs = (data.profile.rates || []), r = data.profile.rate;
+    for (var i = 0; i < rs.length; i++) if (rs[i].from <= d) r = rs[i].rate;
+    return r;
+  }
+
+  // ── Min profil ────────────────────────────────────────────
+  var prof = null;
+  function openProfile() {
+    var body = h('div', null);
+    var close = openSheet('Min profil', body, h('div', { class: 'btnrow' },
+      h('button', { class: 'btn ghost', text: 'Skift kode', onclick: function () { close(); showChangePw(false); } }),
+      h('button', { class: 'btn ghost', text: 'Log ud', onclick: function () { close(); logout(); } })));
+    function draw(p, loading) {
+      body.innerHTML = '';
+      var row = function (k, v) { return v ? h('div', { class: 'pf-row' }, h('span', { text: k }), h('b', { text: v })) : null; };
+      add(body, h('div', { class: 'pf-rate' },
+        h('div', { class: 'l', text: 'Din timeløn' }), h('div', { class: 'v', text: kr(p.rate) }),
+        p.next ? h('div', { class: 's', text: (p.rate === 0 ? 'Du får ' : p.next.rate > p.rate ? 'Stiger til ' : 'Bliver ') + kr(p.next.rate) + ' fra ' + p.next.date + ', ' + p.next.text + '.' }) : null));
+      add(body, h('div', { class: 'pf-list' },
+        row('Navn', p.navn), row('Mail', p.mail), row('Hold', (p.hold || []).join(', ') || 'Intet hold'),
+        row('Afregning', /omkost/i.test(p.form || '') ? 'Omkostningsgodtgørelse' : 'Timeløn'),
+        p.since ? row('Træner i klubben siden', p.since + (p.clubSeasons ? ' · din ' + p.clubSeasons + '. sæson' : '')) : null,
+        p.anc !== null && p.anc !== undefined ? row('Anciennitet', p.anc + ' sæson' + (p.anc === 1 ? '' : 'er')) : null));
+      if (p.ytd) {
+        var omk = p.ytd.loft > 0, pct = omk ? Math.min(100, p.ytd.total / p.ytd.loft * 100) : 0;
+        add(body, h('h3', { class: 'pf-h', text: (omk ? 'Godtgørelse i ' : 'Løn for timer i ') + p.ytd.year }));
+        add(body, h('div', { class: 'pf-ytd' },
+          h('div', { class: 'v' }, h('b', { text: kr(p.ytd.total) }), omk ? h('span', { text: ' af ' + kr(p.ytd.loft) }) : h('span', { text: ' før skat' })),
+          omk ? h('div', { class: 'bar' + (p.ytd.total > p.ytd.loft ? ' over' : pct >= 85 ? ' near' : '') }, h('i', { style: 'width:' + pct + '%' })) : null,
+          p.ytd.pending > 0 ? h('div', { class: 's', text: 'Heraf ' + kr(p.ytd.pending) + ', som udbetales senere.' }) : null,
+          omk && p.ytd.total > p.ytd.loft ? h('div', { class: 's warn', text: 'Du er over årsloftet – kontakt kassereren.' }) : null));
+      }
+      add(body, h('h3', { class: 'pf-h', text: 'Timer pr. sæson' }));
+      if (loading) add(body, h('div', { class: 'empty', text: 'Henter…' }));
+      else if (!(p.seasons || []).length) add(body, h('div', { class: 'hint', text: 'Ingen timer endnu.' }));
+      else add(body, h('div', { class: 'pf-list' }, p.seasons.map(function (x) { return row(x.label, num(x.timer) + ' t'); })));
+    }
+    draw(prof || { navn: data.profile.navn, mail: data.profile.mail, hold: data.profile.hold, form: data.profile.form, rate: data.profile.rate }, !prof);
+    (prof ? callQuiet : call)('apiGetProfile', token).then(function (p) { prof = p; if (document.body.contains(body)) draw(p, false); })
+      .catch(function (e) { if (!prof) { close(); handle(e); } });
+  }
+
   function openHistory() {
     var body = h('div', null, h('div', { class: 'empty', text: 'Henter historik…' }));
     var close = openSheet('Min historik', body, h('button', { class: 'btn ghost', text: 'Luk', onclick: function () { close(); } }), true);
