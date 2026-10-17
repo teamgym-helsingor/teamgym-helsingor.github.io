@@ -157,6 +157,24 @@
   .sheet header { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 8px; }
   .sheet header h2 { margin: 0; font-size: 20px; }
   .sheet .x { border: 0; background: var(--chip); width: 36px; height: 36px; border-radius: 50%; font-size: 18px; cursor: pointer; }
+  /* Trænerguiden i appen: appens egne farver (lys/mørk) – PDF'en har sine egne */
+  .guidebox .tg { color: var(--ink); max-width: none; font-size: 15px; }
+  .guidebox .tg .hd, .guidebox .tg .hd + .gap { display: none; }
+  .guidebox .tg td.cell, .guidebox .tg .card { background: var(--card); border-color: var(--line); box-shadow: var(--shadow); }
+  .guidebox .tg .ct, .guidebox .tg .fact .v, .guidebox .tg .app-only h3 { color: var(--link); }
+  .guidebox .tg .m, .guidebox .tg .ft, .guidebox .tg .fact .l { color: var(--muted); }
+  .guidebox .tg .k { background: var(--field); border-color: var(--line); color: var(--ink); }
+  .guidebox .tg .os { background: var(--accent); color: var(--accent-ink); }
+  .guidebox .tg .num { background: var(--sky); }
+  .guidebox .tg .row td, .guidebox .tg .auto td { font-size: 15px; }
+  .guidebox .tg .fact .v { font-size: 17px; }
+  .guidebox .tg .fact .l { font-size: 13px; }
+  .guidebox .tg .fact img.b { width: 40px; height: 40px; }
+  .guidebox .tg .app-only { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 4px 14px 10px; margin-top: 14px; box-shadow: var(--shadow); }
+  .guidebox .tg .app-only h3 { margin-top: 12px; }
+  @media (prefers-color-scheme: dark) {
+    .guidebox .tg img.i, .guidebox .tg img.b { background: #dfeaf5; border-radius: 9px; padding: 3px; }
+  }
   .pf-rate { background: var(--chip); border-radius: 14px; padding: 14px 16px; margin: 4px 0 14px; }
   .pf-rate .l { font-size: 13px; color: var(--muted); }
   .pf-rate .v { font-size: 30px; font-weight: 800; color: var(--link); }
@@ -569,6 +587,7 @@
     var t = token;
     setToken(null);
     data = null;
+    store(GUIDE_KEY, null); guideHtml = null; guideFetched = false;
     callQuiet('apiLogout', t).catch(function () {});
     showLogin('Du er logget ud.');
   }
@@ -603,6 +622,7 @@
   function period() { return data.periods.filter(function (p) { return p.key === ui.period; })[0]; }
 
   function render() {
+    prefetchGuide();
     var p = period();
     var regs = data.regs.concat(pendingRegs()).filter(function (r) { return r.work === p.key; })
       .sort(function (a, b) { return a.dato < b.dato ? -1 : a.dato > b.dato ? 1 : 0; });
@@ -994,13 +1014,22 @@
       .catch(function (e) { if (!prof) { close(); handle(e); } });
   }
 
-  var guideHtml = null;
+  // Guiden huskes på enheden, så den åbner med det samme. Den hentes stille i baggrunden efter login.
+  var GUIDE_KEY = 'tgh_traenertimer_guide';
+  var guideHtml = load(GUIDE_KEY), guideFetched = false;
+  function prefetchGuide() {
+    if (guideFetched || !token) return;
+    guideFetched = true;
+    setTimeout(function () {
+      callQuiet('apiGetGuide', token).then(function (r) { guideHtml = r.html; store(GUIDE_KEY, r.html); }).catch(function () { guideFetched = false; });
+    }, 2500);
+  }
   function openGuide() {
     var body = h('div', null, h('div', { class: 'empty', text: 'Henter vejledning…' }));
     var close = openSheet('Sådan bruger du appen', body, h('button', { class: 'btn ghost', text: 'Luk', onclick: function () { close(); } }), true);
-    function draw(html) { body.innerHTML = ''; var paper = h('div', { class: 'paper' }); paper.innerHTML = html; body.appendChild(paper); }
+    function draw(html) { body.innerHTML = ''; var box = h('div', { class: 'guidebox' }); box.innerHTML = html; body.appendChild(box); }
     if (guideHtml) draw(guideHtml);
-    (guideHtml ? callQuiet : call)('apiGetGuide', token).then(function (r) { guideHtml = r.html; if (document.body.contains(body)) draw(r.html); })
+    (guideHtml ? callQuiet : call)('apiGetGuide', token).then(function (r) { var changed = r.html !== guideHtml; guideHtml = r.html; store(GUIDE_KEY, r.html); guideFetched = true; if (changed && document.body.contains(body)) draw(r.html); })
       .catch(function (e) { if (!guideHtml) { close(); handle(e); } });
   }
 
