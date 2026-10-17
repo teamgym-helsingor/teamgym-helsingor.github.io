@@ -171,8 +171,9 @@
   .pf-ytd .bar { height: 8px; background: var(--chip); border-radius: 6px; margin: 8px 0 4px; overflow: hidden; }
   .pf-ytd .bar i { display: block; height: 100%; background: var(--sky); border-radius: 6px; }
   .pf-ytd .bar.near i { background: var(--warn); } .pf-ytd .bar.over i { background: var(--bad); }
+  .pf-ytd .left { font-size: 15px; font-weight: 600; margin-top: 2px; }
   .pf-ytd .s { font-size: 13px; color: var(--muted); margin-top: 4px; } .pf-ytd .s.warn { color: var(--bad); font-weight: 600; }
-  .sheet .body { overflow-y: auto; padding: 0 16px 12px; -webkit-overflow-scrolling: touch; }
+  .sheet .body { overflow-y: auto; padding: 0 16px 12px; -webkit-overflow-scrolling: touch; flex: 1 1 auto; min-height: 0; overscroll-behavior: contain; }
   .sheet footer { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--card); }
   .sheet footer .sum { font-size: 14px; color: var(--muted); text-align: center; margin-bottom: 8px; }
   .btnrow { display: flex; gap: 10px; }
@@ -958,9 +959,7 @@
   var prof = null;
   function openProfile() {
     var body = h('div', null);
-    var close = openSheet('Min profil', body, h('div', { class: 'btnrow' },
-      h('button', { class: 'btn ghost', text: 'Skift kode', onclick: function () { close(); showChangePw(false); } }),
-      h('button', { class: 'btn ghost', text: 'Log ud', onclick: function () { close(); logout(); } })));
+    var close = openSheet('Min profil', body, h('button', { class: 'btn ghost', text: 'Luk', onclick: function () { close(); } }));
     function draw(p, loading) {
       body.innerHTML = '';
       var row = function (k, v) { return v ? h('div', { class: 'pf-row' }, h('span', { text: k }), h('b', { text: v })) : null; };
@@ -971,13 +970,15 @@
         row('Navn', p.navn), row('Mail', p.mail), row('Hold', (p.hold || []).join(', ') || 'Intet hold'),
         row('Afregning', /omkost/i.test(p.form || '') ? 'Omkostningsgodtgørelse' : 'Timeløn'),
         p.since ? row('Træner i klubben siden', p.since + (p.clubSeasons ? ' · din ' + p.clubSeasons + '. sæson' : '')) : null,
-        p.anc !== null && p.anc !== undefined ? row('Anciennitet', p.anc + ' sæson' + (p.anc === 1 ? '' : 'er')) : null));
+        p.anc !== null && p.anc !== undefined ? row('Anciennitet', p.anc + ' sæson' + (p.anc === 1 ? '' : 'er')) : null,
+        h('div', { class: 'pf-row' }, h('span', { text: 'Kode' }), h('button', { class: 'histbtn', text: 'Skift kode ›', onclick: function () { close(); showChangePw(false); } }))));
       if (p.ytd) {
         var omk = p.ytd.loft > 0, pct = omk ? Math.min(100, p.ytd.total / p.ytd.loft * 100) : 0;
         add(body, h('h3', { class: 'pf-h', text: (omk ? 'Godtgørelse i ' : 'Løn for timer i ') + p.ytd.year }));
         add(body, h('div', { class: 'pf-ytd' },
           h('div', { class: 'v' }, h('b', { text: kr(p.ytd.total) }), omk ? h('span', { text: ' af ' + kr(p.ytd.loft) }) : h('span', { text: ' før skat' })),
           omk ? h('div', { class: 'bar' + (p.ytd.total > p.ytd.loft ? ' over' : pct >= 85 ? ' near' : '') }, h('i', { style: 'width:' + pct + '%' })) : null,
+          omk && p.ytd.total <= p.ytd.loft ? h('div', { class: 'left', text: 'Du har ' + kr(p.ytd.loft - p.ytd.total) + ' tilbage i ' + p.ytd.year + '.' }) : null,
           p.ytd.pending > 0 ? h('div', { class: 's', text: 'Heraf ' + kr(p.ytd.pending) + ', som udbetales senere.' }) : null,
           omk && p.ytd.total > p.ytd.loft ? h('div', { class: 's warn', text: 'Du er over årsloftet – kontakt kassereren.' }) : null));
       }
