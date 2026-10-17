@@ -392,7 +392,7 @@
   var READS = [0, 4000, 8000, 14000];
   var WRITE_PLAN = [0, 6500, 13000, 21000];
   var WRITES = { apiAddRegistrations: 1, apiAddExpense: 1, apiDeleteRegistration: 1, apiDeleteExpense: 1, apiNoHours: 1, apiChangePassword: 1 };
-  var HEDGE = { apiBoot: READS, apiConfig: READS, apiGetState: READS, apiGetHistory: READS, apiGetMonth: READS, apiGetProfile: READS, apiGetPayslip: READS, apiGetPayslipPdf: READS,
+  var HEDGE = { apiBoot: READS, apiConfig: READS, apiGetState: READS, apiGetHistory: READS, apiGetMonth: READS, apiGetProfile: READS, apiGetGuide: READS, apiGetPayslip: READS, apiGetPayslipPdf: READS,
     apiLogin: [0, 5500, 11000, 18000], // en ekstra kopi giver højst en ekstra session
     apiAddRegistrations: WRITE_PLAN, apiAddExpense: [0, 15000, 30000], apiDeleteRegistration: WRITE_PLAN, apiDeleteExpense: WRITE_PLAN,
     apiNoHours: WRITE_PLAN, apiChangePassword: WRITE_PLAN, apiLogout: [0] };
@@ -614,6 +614,7 @@
     var menu = h('div', { class: 'menu hidden' },
       h('button', { text: 'Min profil', onclick: openProfile }),
       h('button', { text: 'Min historik', onclick: openHistory }),
+      h('button', { text: 'Sådan bruger du appen', onclick: openGuide }),
       h('button', { text: 'Skift kode', onclick: function () { showChangePw(false); } }),
       h('button', { text: 'Log ud', onclick: logout }));
     var menuBtn = h('button', { class: 'iconbtn', 'aria-label': 'Menu', text: '⋯', onclick: function (ev) { ev.stopPropagation(); menu.classList.toggle('hidden'); } });
@@ -971,7 +972,8 @@
         row('Afregning', /omkost/i.test(p.form || '') ? 'Omkostningsgodtgørelse' : 'Timeløn'),
         p.since ? row('Træner i klubben siden', p.since + (p.clubSeasons ? ' · din ' + p.clubSeasons + '. sæson' : '')) : null,
         p.anc !== null && p.anc !== undefined ? row('Anciennitet', p.anc + ' sæson' + (p.anc === 1 ? '' : 'er')) : null,
-        h('div', { class: 'pf-row' }, h('span', { text: 'Kode' }), h('button', { class: 'histbtn', text: 'Skift kode ›', onclick: function () { close(); showChangePw(false); } }))));
+        h('div', { class: 'pf-row' }, h('span', { text: 'Kode' }), h('button', { class: 'histbtn', text: 'Skift kode ›', onclick: function () { close(); showChangePw(false); } })),
+        h('div', { class: 'pf-row' }, h('span', { text: 'Hjælp' }), h('button', { class: 'histbtn', text: 'Sådan bruger du appen ›', onclick: function () { close(); openGuide(); } }))));
       if (p.ytd) {
         var omk = p.ytd.loft > 0, pct = omk ? Math.min(100, p.ytd.total / p.ytd.loft * 100) : 0;
         add(body, h('h3', { class: 'pf-h', text: (omk ? 'Godtgørelse i ' : 'Løn for timer i ') + p.ytd.year }));
@@ -990,6 +992,16 @@
     draw(prof || { navn: data.profile.navn, mail: data.profile.mail, hold: data.profile.hold, form: data.profile.form, rate: data.profile.rate }, !prof);
     (prof ? callQuiet : call)('apiGetProfile', token).then(function (p) { prof = p; if (document.body.contains(body)) draw(p, false); })
       .catch(function (e) { if (!prof) { close(); handle(e); } });
+  }
+
+  var guideHtml = null;
+  function openGuide() {
+    var body = h('div', null, h('div', { class: 'empty', text: 'Henter vejledning…' }));
+    var close = openSheet('Sådan bruger du appen', body, h('button', { class: 'btn ghost', text: 'Luk', onclick: function () { close(); } }), true);
+    function draw(html) { body.innerHTML = ''; var paper = h('div', { class: 'paper' }); paper.innerHTML = html; body.appendChild(paper); }
+    if (guideHtml) draw(guideHtml);
+    (guideHtml ? callQuiet : call)('apiGetGuide', token).then(function (r) { guideHtml = r.html; if (document.body.contains(body)) draw(r.html); })
+      .catch(function (e) { if (!guideHtml) { close(); handle(e); } });
   }
 
   function openHistory() {
